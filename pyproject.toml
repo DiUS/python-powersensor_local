@@ -1,6 +1,6 @@
 [project]
 name = "powersensor-local"
-version = "1.0.0"
+version = "1.0.1"
 description = "Network-local (non-cloud) interface for Powersensor devices"
 authors = [
   { name = "Jade Mattsson", email = "jmattsson@dius.com.au" },
@@ -16,9 +16,9 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/DiUS/powersensor-local.git"
-Homepage = "https://github.com/DiUS/powersensor-local"
-Issues = "https://github.com/DiUS/powersensor-local/issues"
+Repository = "https://github.com/DiUS/python-powersensor_local.git"
+Homepage = "https://github.com/DiUS/python-powersensor_local"
+Issues = "https://github.com/DiUS/python-powersensor_local/issues"
 
 [project.scripts]
 ps-events = "powersensor_local.events:app"

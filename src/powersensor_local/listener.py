@@ -18,8 +18,10 @@ class PowersensorListener(asyncio.DatagramProtocol):
         self._exiting = False
         self._bcast = bcast_addr
 
-    async def scan(self, completion_callback):
-        """Scans the local network for discoverable devices with a timeout."""
+    async def scan(self):
+        """Scans the local network for discoverable devices with a timeout.
+        Returns the list of IP addresses of the discovered gateways (plugs).
+        """
         self._known_addresses.clear()
         loop = asyncio.get_running_loop()
         transport, _ = await loop.create_datagram_endpoint(
@@ -37,7 +39,7 @@ class PowersensorListener(asyncio.DatagramProtocol):
             timeout -= 0.5
 
         transport.close()
-        await completion_callback(set(self._known_addresses.keys()))
+        return self._known_addresses.keys()
 
     def protocol_factory(self):
         return self

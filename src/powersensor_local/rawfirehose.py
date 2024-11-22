@@ -44,14 +44,15 @@ async def main():
     signal.signal(signal.SIGINT, handle_sigint)
 
     # Scan for devices and subscribe upon completion
-    await ps.scan(lambda ips: asyncio.create_task(ps.subscribe(on_msg)))
+    await ps.scan()
+    await ps.subscribe(on_msg)
 
     # Keep the event loop running until Ctrl+C is pressed
     while not exiting:
         await asyncio.sleep(1)
 
 def app():
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     loop.run_until_complete(main())
     loop.stop()
 

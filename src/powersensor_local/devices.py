@@ -126,13 +126,13 @@ class PowersensorDevices:
             }
         """
         self._event_cb = async_event_cb
-        await self._ps.scan(self._on_scanned)
+        await self._on_scanned(await self._ps.scan())
         self._timer = self._Timer(EXPIRY_CHECK_INTERVAL_S, self._on_timer)
 
     async def rescan(self):
         """Performs a fresh scan of the network to discover added devices,
         or devices which have changed their IP address for some reason."""
-        await self._ps.scan(self._on_scanned)
+        await self._on_scanned(await self._ps.scan())
 
     async def stop(self):
         """Stops the event streaming and disconnects from the devices.
@@ -165,7 +165,7 @@ class PowersensorDevices:
             }
             await self._event_cb(ev)
 
-        asyncio.create_task(self._ps.subscribe(self._on_msg))
+        await self._ps.subscribe(self._on_msg)
 
     async def _on_msg(self, obj):
         mac = obj.get('mac')
@@ -303,10 +303,11 @@ class PowersensorDevices:
             self._terminate = False
             self._interval = interval_s
             self._callback = callback
-            asyncio.create_task(self._run())
+            self._task = asyncio.create_task(self._run())
 
         def terminate(self):
             self._terminate = True
+            self._task.cancel()
 
         async def _run(self):
             while not self._terminate:

@@ -124,10 +124,16 @@ class PowersensorDevices:
               value: Y.Z,
               durations_s: N.M,
             }
+
+        The start function returns the number of found gateway plugs.
+        Powersensor devices aren't found directly as they are typically not
+        on the network, but are instead detected when they relay data through
+        a plug via long-range radio.
         """
         self._event_cb = async_event_cb
         await self._on_scanned(await self._ps.scan())
         self._timer = self._Timer(EXPIRY_CHECK_INTERVAL_S, self._on_timer)
+        return len(self._ips)
 
     async def rescan(self):
         """Performs a fresh scan of the network to discover added devices,

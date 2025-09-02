@@ -67,7 +67,12 @@ class PowersensorListener(asyncio.DatagramProtocol):
 
     async def _processline(self, ip, mac, reader, writer):
         data = await reader.readline()
-        if data != b'' and data != b'\n':
+        if data == b'':
+            reader.feed_eof()
+            writer.close()
+            await writer.wait_closed()
+            raise ConnectionResetError
+        if data != b'\n':
             try:
                 message = json.loads(data.decode('utf-8'))
                 typ = message['type']
@@ -98,7 +103,8 @@ class PowersensorListener(asyncio.DatagramProtocol):
 
         except (ConnectionResetError, asyncio.TimeoutError):
             # Handle disconnection and retry with exponential backoff
-            del self._connections[ip]
+            if self._connections.get(ip) is not None:
+                del self._connections[ip]
             await asyncio.sleep(min(5 * 60, 2**backoff * 1))
             return await self._connect_to_device(ip, mac, backoff)
 

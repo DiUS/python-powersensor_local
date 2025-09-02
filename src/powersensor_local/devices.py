@@ -227,8 +227,7 @@ class PowersensorDevices:
             if unit == 'w' or unit == 'W':
                 evs.append(self._mk_average_power_event(obj))
             elif unit == 'l' or unit == 'L':
-                evs.append(self.mk_average_water_event(obj))
-                pass # TODO, cl/min?
+                evs.append(self._mk_average_water_event(obj))
             elif unit == 'U':
                 evs.append(self._mk_uncalib_power_event(obj))
             elif unit == 'I':
@@ -263,6 +262,17 @@ class PowersensorDevices:
             ev['current'] = obj.get('current')
             ev['active_current'] = obj.get('active_current')
             ev['reactive_current'] = obj.get('reactive_current')
+        if obj.get('role'):
+            ev['role'] = obj.get('role')
+        return ev
+
+    def _mk_average_water_event(self, obj):
+        ev = {
+            'event': 'average_water',
+            'litres': obj.get('power'),
+            'duration_s': obj.get('duration'),
+            'summation_litres': obj.get('summation'),
+        }
         return ev
 
     def _mk_uncalib_power_event(self, obj):

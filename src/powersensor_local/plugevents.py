@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-"""Utility script for accessing the raw plug subscription data from a single
-network-local Powersensor device. Intended for advanced debugging use only."""
+"""Utility script for accessing the plug api from a single network-local
+Powersensor device. Intended for advanced debugging use only."""
 
 import asyncio
 import os
 import signal
 import sys
-from plug_listener import PlugListener
+from plug_api import PlugApi
 
 exiting = False
 plug = None
@@ -20,15 +20,15 @@ async def do_exit():
         del plug
     exiting = True
 
-async def on_evt_msg(_, msg):
-    print(msg)
+async def on_evt_msg(evt, msg):
+    print(evt, msg)
 
 async def on_evt(evt):
     print(evt)
 
 async def main():
-    if len(sys.argv) < 2:
-        print(f"Syntax: {sys.argv[0]} <ip> [port]")
+    if len(sys.argv) < 3:
+        print(f"Syntax: {sys.argv[0]} <id> <ip> [port]")
         sys.exit(1)
 
     # Signal handler for Ctrl+C
@@ -39,12 +39,20 @@ async def main():
     signal.signal(signal.SIGINT, handle_sigint)
 
     global plug
-    plug = PlugListener(sys.argv[1], *sys.argv[2:2])
-    plug.subscribe('message', on_evt_msg)
-    plug.subscribe('connecting', on_evt)
-    plug.subscribe('connecting', on_evt)
-    plug.subscribe('connected', on_evt)
-    plug.subscribe('disconnected', on_evt)
+    plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:3])
+    known_evs = [
+        'average_flow',
+        'average_power',
+        'average_power_components',
+        'battery_level',
+        'now_relaying_for',
+        'radio_signal_quality',
+        'summation_energy',
+        'summation_volume',
+        'uncalibrated_instant_reading',
+    ]
+    for ev in known_evs:
+        plug.subscribe(ev, on_evt_msg)
     plug.connect()
 
     # Keep the event loop running until Ctrl+C is pressed

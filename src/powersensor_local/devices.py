@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 
 from .listener import PowersensorListener
+from .xlatemsg import translate_raw_message
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60
@@ -55,75 +56,9 @@ class PowersensorDevices:
             { event: "device_lost", mac: "..." }
 
 
+        Additionally, all events described in xlatemsg.translate_raw_message
+        may be issued. The event name is inserted into the field 'event'.
 
-        The events below all have the following common fields:
-
-            { mac: "...", starttime_utc: X }
-            
-            and where applicable, also:
-
-            { via: "..." }
-
-        For brevity's sake they are not shown in the examples below, other
-        then simply as ...
-
-
-        battery_level:
-            The battery level of a sensor.
-
-            { ...,  event: "battery_level", volts: X.Y }
-
-        voltage:
-            The mains voltage as detected by a plug.
-
-            { ..., event: "voltage", volts: X.Y }
-
-        average_power:
-            Reports the average power observed over the reporting duration.
-            May be negative for e.g. solar sensors and house sensors when
-            exporting solar to the grid.
-
-            The summation_joules field is a summation style register which
-            reports accumulated energy. This field is only useful for
-            calculating the delta of energy between two events. The counter
-            will reset to zero if the device is restarted, and is technically
-            subject to overflow, though that is unlikely to be reached.
-            The summation may be negative if solar export is present. The
-            summation may increment or decrement depending on whether energy
-            is being imported from or exported to the grid.
-
-            { ..., event: "average_power",
-              watts: X.Y,
-              durations_s: N.M,
-              summation_joules: J.K,
-            }
-
-            For reports from plugs, the following fields will also be present:
-
-            {
-              ...,
-              volts: X.Y,
-              current: C.D,
-              active_current: E.F,
-              reactive_current: G.H,
-            }
-
-            The (apparent) current, active_current and reactive_current fields
-            are all reported in a unit of Amperes.
-
-        uncalibrated_power:
-            Powersensors require calibrations of their readings before they
-            are able to be converted into a proper power reading. This event
-            is issued for sensor readings prior to such calibration completing.
-            The reported value has no inherent meaning beyond being an
-            indication of the strength of the signal seen by the sensor. It
-            is most definitely NOT in Watts. For most purposes, this event
-            can (and should be) ignored.
-
-            { ..., event: "uncalibrated_power",
-              value: Y.Z,
-              durations_s: N.M,
-            }
 
         The start function returns the number of found gateway plugs.
         Powersensor devices aren't found directly as they are typically not
@@ -184,7 +119,8 @@ class PowersensorDevices:
         device.mark_active()
 
         if self._event_cb and device.subscribed:
-            evs = self._mk_events(obj)
+            relayer = obj.get('via') or mac
+            evs = self._mk_events(obj, relayer)
             if len(evs) > 0:
                 for ev in evs:
                     await self._event_cb(ev)
@@ -217,84 +153,14 @@ class PowersensorDevices:
                 }
                 await self._event_cb(ev)
 
-   ### Event formatting ###
-
-    def _mk_events(self, obj):
+    def _mk_events(self, obj, relayer):
         evs = []
-        typ = obj.get('type')
-        if typ == 'instant_power':
-            unit = obj.get('unit')
-            if unit == 'w' or unit == 'W':
-                evs.append(self._mk_average_power_event(obj))
-            elif unit == 'l' or unit == 'L':
-                evs.append(self._mk_average_water_event(obj))
-            elif unit == 'U':
-                evs.append(self._mk_uncalib_power_event(obj))
-            elif unit == 'I':
-                pass # invalid data / sample failed
-
-            if obj.get('voltage') is not None:
-                evs.append(self._mk_voltage_event(obj))
-
-            if obj.get('batteryMicrovolt') is not None:
-                evs.append(self._mk_battery_event(obj))
-        else:
-            print(obj)
-
-        for ev in evs:
-            ev['mac'] = obj.get('mac')
-            if obj.get('starttime'):
-                ev['starttime_utc'] = obj.get('starttime')
-            if obj.get('via'):
-                ev['via'] = obj.get('via')
+        kvs = translate_raw_message(obj, relayer)
+        for key, ev in kvs.items():
+            ev['event'] = key
+            evs.append(ev)
 
         return evs
-
-    def _mk_average_power_event(self, obj):
-        ev = {
-            'event': 'average_power',
-            'watts': obj.get('power'),
-            'duration_s': obj.get('duration'),
-            'summation_joules': obj.get('summation'),
-        }
-        if obj.get('device') == 'plug':
-            ev['volts'] = obj.get('voltage')
-            ev['current'] = obj.get('current')
-            ev['active_current'] = obj.get('active_current')
-            ev['reactive_current'] = obj.get('reactive_current')
-        if obj.get('role'):
-            ev['role'] = obj.get('role')
-        return ev
-
-    def _mk_average_water_event(self, obj):
-        ev = {
-            'event': 'average_water',
-            'litres': obj.get('power'),
-            'duration_s': obj.get('duration'),
-            'summation_litres': obj.get('summation'),
-        }
-        return ev
-
-    def _mk_uncalib_power_event(self, obj):
-        ev = {
-            'event': 'uncalibrated_power',
-            'value': obj.get('power'),
-            'duration_s': obj.get('duration'),
-        }
-        return ev
-
-    def _mk_voltage_event(self, obj):
-        return {
-            'event': 'voltage',
-            'volts': obj.get('voltage'),
-        }
-
-    def _mk_battery_event(self, obj):
-        return {
-            'event': 'battery_level',
-            'volts': float(obj.get('batteryMicrovolt'))/1000000.0,
-        }
-
 
     ### Supporting classes ###
 

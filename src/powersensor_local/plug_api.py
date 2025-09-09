@@ -27,6 +27,7 @@ class PlugApi(AsyncEventEmitter):
         self._mac = mac
         self._listener = PlugListener(ip, port)
         self._listener.subscribe('message', self._on_message)
+        self._listener.subscribe('exception', self._on_exception)
         self._seen = set()
 
     def connect(self):
@@ -43,6 +44,10 @@ class PlugApi(AsyncEventEmitter):
         await self._listener.disconnect()
 
     async def _on_message(self, _, message):
+        """Translates the raw message and emits the resulting messages, if any.
+
+        Also synthesises 'now_relaying_for' messages as needed.
+        """
         evs = None
         try:
             evs = translate_raw_message(message, self._mac)
@@ -64,5 +69,6 @@ class PlugApi(AsyncEventEmitter):
         for name, ev in evs.items():
             await self.emit(name, ev)
 
-# FIXME - we'll want to use mac:role for the unique ID in HA, so a reassigned
-# sensor shows up differently
+    async def _on_exception(self, _, e):
+        """Propagates exceptions from the plug listener."""
+        await self.emit('exception', e)

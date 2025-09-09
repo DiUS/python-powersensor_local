@@ -21,8 +21,13 @@ class AsyncEventEmitter:
     async def emit(self, evstr, *args):
         """Emits an event to all registered listeners for that event type.
         Additional arguments may be supplied with event as appropriate. Each
-        event handler is awaited before delivering the event to the next."""
+        event handler is awaited before delivering the event to the next.
+        If an event handler raises an exception, this is funneled through
+        to an 'exception' event being emitted. This can chain."""
         if self._listeners.get(evstr) is None:
             return
         for cb in self._listeners[evstr]:
-            await cb(evstr, *args)
+            try:
+                await cb(evstr, *args)
+            except BaseException as e:
+                await self.emit('exception', e)

@@ -23,9 +23,6 @@ async def do_exit():
 async def on_evt_msg(evt, msg):
     print(evt, msg)
 
-async def on_evt(evt):
-    print(evt)
-
 async def main():
     if len(sys.argv) < 3:
         print(f"Syntax: {sys.argv[0]} <id> <ip> [port]")
@@ -41,6 +38,7 @@ async def main():
     global plug
     plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:3])
     known_evs = [
+        'exception',
         'average_flow',
         'average_power',
         'average_power_components',

@@ -40,6 +40,7 @@ async def main():
 
     global plug
     plug = PlugListener(sys.argv[1], *sys.argv[2:2])
+    plug.subscribe('exception', on_evt_msg)
     plug.subscribe('message', on_evt_msg)
     plug.subscribe('connecting', on_evt)
     plug.subscribe('connecting', on_evt)

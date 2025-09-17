@@ -1,0 +1,60 @@
+name: Deploy Documentation to GitHub Pages
+
+on:
+  push:
+    branches: [ "formatting-changes" ] 
+  
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Install Hatch
+        run: pip install hatch
+      
+      - name: Install dependencies
+        run: |
+          cd powersensor_local  # Replace with your actual package name
+          pip install -e ".[docs]"
+      
+      - name: Build documentation
+        run: |
+          cd powersensor_local/docs  # Replace with your actual package name
+          make html
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: 'powersensor_local/docs/build/html' 
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v3

@@ -3,58 +3,44 @@
 """Utility script for accessing the full event stream from all network-local
 Powersensor devices. Intended for debugging use only. Please use the proper
 interface in devices.py rather than parsing the output from this script."""
-
-import asyncio
-import os
-import signal
+import typing
 import sys
+from pathlib import Path
 
-if __name__ == "__main__":
-    # Make CLI runnable from source tree
-    package_source_path = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, package_source_path)
-    __package__ = "powersensor_local"
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
-from .devices import PowersensorDevices
+from powersensor_local.devices import PowersensorDevices
+from powersensor_local.abstract_event_handler import AbstractEventHandler
 
+class EventLoopRunner(AbstractEventHandler):
+    def __init__(self):
+        self.devices: typing.Union[PowersensorDevices, None] = PowersensorDevices()
 
-exiting = False
-devices = None
+    async def on_exit(self):
+        if self.devices is not None:
+            await self.devices.stop()
 
-async def do_exit():
-    global exiting
-    global devices
-    if devices != None:
-        await devices.stop()
-    exiting = True
+    async def on_message(self, obj):
+        print(obj)
+        if obj['event'] == 'device_found':
+            self.devices.subscribe(obj['mac'])
 
-async def on_msg(obj):
-    print(obj)
-    global devices
-    if obj['event'] == 'device_found':
-        devices.subscribe(obj['mac'])
+    async def main(self):
+        if self.devices is None:
+            self.devices = PowersensorDevices()
 
-async def main():
-    global devices
-    devices = PowersensorDevices()
+        # Signal handler for Ctrl+C
+        self.register_sigint_handler()
 
-    # Signal handler for Ctrl+C
-    def handle_sigint(signum, frame):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        asyncio.create_task(do_exit())
+        await self.devices.start(self.on_message)
 
-    signal.signal(signal.SIGINT, handle_sigint)
-
-    await devices.start(on_msg)
-
-    # Keep the event loop running until Ctrl+C is pressed
-    while not exiting:
-        await asyncio.sleep(1)
+        # Keep the event loop running until Ctrl+C is pressed
+        await self.wait()
 
 def app():
-    loop = asyncio.new_event_loop()
-    loop.run_until_complete(main())
-    loop.stop()
+    EventLoopRunner().run()
 
 if __name__ == "__main__":
     app()

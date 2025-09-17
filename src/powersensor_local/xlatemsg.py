@@ -210,7 +210,7 @@ def translate_raw_message(message: dict, relay_mac: str):
           to use this value for is display it relative to other uncalibrated
           values from the same device. The magnitude of the value is an
           indication of the strength of the signal seen by the sensor, but
-          the unit is most definietely NOT in Watts. For most purposes, this
+          the unit is most definitely NOT in Watts. For most purposes, this
           event can (and should be) ignored. Once the backend has successfully
           calibrated the sensor against one or more plugs, these events
           will be replaced by "average_power" events instead.

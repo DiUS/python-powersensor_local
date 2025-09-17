@@ -3,57 +3,54 @@
 """Utility script for accessing the raw plug subscription data from a single
 network-local Powersensor device. Intended for advanced debugging use only."""
 
-import asyncio
-import os
-import signal
+from typing import Union
 import sys
-from plug_listener import PlugListener
 
-exiting = False
-plug = None
+from pathlib import Path
 
-async def do_exit():
-    global exiting
-    global plug
-    if plug != None:
-        await plug.disconnect()
-        del plug
-    exiting = True
+project_root = str(Path(__file__).parents[ 1])
+if project_root not in sys.path:
+        sys.path.append(project_root)
 
-async def on_evt_msg(_, msg):
-    print(msg)
+from powersensor_local.plug_listener import PlugListener
+from powersensor_local.abstract_event_handler import AbstractEventHandler
 
-async def on_evt(evt):
-    print(evt)
+async def print_message_ignore_event(_, message):
+    print(message)
 
-async def main():
-    if len(sys.argv) < 2:
-        print(f"Syntax: {sys.argv[0]} <ip> [port]")
-        sys.exit(1)
+async def print_event(event):
+    print(event)
 
-    # Signal handler for Ctrl+C
-    def handle_sigint(signum, frame):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        asyncio.create_task(do_exit())
+class RawPlug(AbstractEventHandler):
+    def __init__(self):
+        self.plug: Union[PlugListener, None] = None
 
-    signal.signal(signal.SIGINT, handle_sigint)
+    async def on_exit(self):
+        if self.plug is not None:
+            await self.plug.disconnect()
+            self.plug = None
 
-    global plug
-    plug = PlugListener(sys.argv[1], *sys.argv[2:2])
-    plug.subscribe('exception', on_evt_msg)
-    plug.subscribe('message', on_evt_msg)
-    plug.subscribe('connecting', on_evt)
-    plug.subscribe('connecting', on_evt)
-    plug.subscribe('connected', on_evt)
-    plug.subscribe('disconnected', on_evt)
-    plug.connect()
+    async def main(self):
+        if len(sys.argv) < 2:
+            print(f"Syntax: {sys.argv[0]} <ip> [port]")
+            sys.exit(1)
 
-    # Keep the event loop running until Ctrl+C is pressed
-    while not exiting:
-        await asyncio.sleep(1)
+        # Signal handler for Ctrl+C
+        self.register_sigint_handler()
+
+        plug = PlugListener(sys.argv[1], *sys.argv[2:2])
+        plug.subscribe('exception', print_message_ignore_event)
+        plug.subscribe('message', print_message_ignore_event)
+        plug.subscribe('connecting', print_event)
+        plug.subscribe('connecting', print_event)
+        plug.subscribe('connected', print_event)
+        plug.subscribe('disconnected', print_event)
+        plug.connect()
+
+        # Keep the event loop running until Ctrl+C is pressed
+        await self.wait()
 
 def app():
-    asyncio.run(main())
-
+    RawPlug().run()
 if __name__ == "__main__":
     app()

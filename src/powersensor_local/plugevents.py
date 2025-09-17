@@ -3,62 +3,59 @@
 """Utility script for accessing the plug api from a single network-local
 Powersensor device. Intended for advanced debugging use only."""
 
-import asyncio
-import os
-import signal
 import sys
-from plug_api import PlugApi
+from typing import Union
+from pathlib import Path
 
-exiting = False
-plug = None
+project_root = str(Path(__file__).parents[ 1])
+if project_root not in sys.path:
+        sys.path.append(project_root)
 
-async def do_exit():
-    global exiting
-    global plug
-    if plug != None:
-        await plug.disconnect()
-        del plug
-    exiting = True
+from powersensor_local.plug_api import PlugApi
+from powersensor_local.abstract_event_handler import AbstractEventHandler
 
-async def on_evt_msg(evt, msg):
-    print(evt, msg)
+async def print_event_and_message(event, message):
+    print(event, message)
 
-async def main():
-    if len(sys.argv) < 3:
-        print(f"Syntax: {sys.argv[0]} <id> <ip> [port]")
-        sys.exit(1)
+class PlugEvents(AbstractEventHandler):
+    def __init__(self):
+        self.plug: Union[PlugApi, None] = None
 
-    # Signal handler for Ctrl+C
-    def handle_sigint(signum, frame):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        asyncio.create_task(do_exit())
+    async def on_exit(self):
+        if self.plug is not None:
+            await self.plug.disconnect()
+            self.plug = None
 
-    signal.signal(signal.SIGINT, handle_sigint)
+    async def main(self):
+        if len(sys.argv) < 3:
+            print(f"Syntax: {sys.argv[0]} <id> <ip> [port]")
+            sys.exit(1)
 
-    global plug
-    plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:3])
-    known_evs = [
-        'exception',
-        'average_flow',
-        'average_power',
-        'average_power_components',
-        'battery_level',
-        'now_relaying_for',
-        'radio_signal_quality',
-        'summation_energy',
-        'summation_volume',
-        'uncalibrated_instant_reading',
-    ]
-    for ev in known_evs:
-        plug.subscribe(ev, on_evt_msg)
-    plug.connect()
+        # Signal handler for Ctrl+C
+        self.register_sigint_handler()
 
-    # Keep the event loop running until Ctrl+C is pressed
-    while not exiting:
-        await asyncio.sleep(1)
+        plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:3])
+        known_evs = [
+            'exception',
+            'average_flow',
+            'average_power',
+            'average_power_components',
+            'battery_level',
+            'now_relaying_for',
+            'radio_signal_quality',
+            'summation_energy',
+            'summation_volume',
+            'uncalibrated_instant_reading',
+        ]
+        for ev in known_evs:
+            plug.subscribe(ev, print_event_and_message)
+        plug.connect()
+
+        # Keep the event loop running until Ctrl+C is pressed
+        await self.wait()
 
 def app():
-    asyncio.run(main())
+    PlugEvents().run()
 
 if __name__ == "__main__":
     app()

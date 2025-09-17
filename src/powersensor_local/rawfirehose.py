@@ -4,57 +4,47 @@
 network-local Powersensor devices. Intended for advanced debugging use only.
 For all other uses, please see the API in devices.py"""
 
-import asyncio
-import os
-import signal
+import typing
 import sys
+from pathlib import Path
 
-if __name__ == "__main__":
-    # Make CLI runnable from source tree
-    package_source_path = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, package_source_path)
-    __package__ = "powersensor_local"
+project_root = str(Path(__file__).parents[ 1])
+if project_root not in sys.path:
+        sys.path.append(project_root)
 
-from .listener import PowersensorListener
+from powersensor_local.listener import PowersensorListener
+from powersensor_local.abstract_event_handler import AbstractEventHandler
+
+async def print_message(obj):
+    print(obj)
 
 
-exiting = False
-ps = None
+class RawFirehose(AbstractEventHandler):
+    def __init__(self):
+        self.exiting: bool = False
+        self.ps: typing.Union[PowersensorListener, None] = PowersensorListener()
 
-async def do_exit():
-    global exiting
-    global ps
-    if ps != None:
-        await ps.unsubscribe()
-        await ps.stop()
-    exiting = True
+    async def on_exit(self):
+        if self.ps is not None:
+            await self.ps.unsubscribe()
+            await self.ps.stop()
 
-async def on_msg(data):
-    print(data)
+    async def main(self):
+        if self.ps is None:
+            self.ps = PowersensorListener()
 
-async def main():
-    global ps
-    ps = PowersensorListener()
+        # Signal handler for Ctrl+C
+        self.register_sigint_handler()
 
-    # Signal handler for Ctrl+C
-    def handle_sigint(signum, frame):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        asyncio.create_task(do_exit())
+        # Scan for devices and subscribe upon completion
+        await self.ps.scan()
+        await self.ps.subscribe(print_message)
 
-    signal.signal(signal.SIGINT, handle_sigint)
-
-    # Scan for devices and subscribe upon completion
-    await ps.scan()
-    await ps.subscribe(on_msg)
-
-    # Keep the event loop running until Ctrl+C is pressed
-    while not exiting:
-        await asyncio.sleep(1)
+        # Keep the event loop running until Ctrl+C is pressed
+        await self.wait()
 
 def app():
-    loop = asyncio.new_event_loop()
-    loop.run_until_complete(main())
-    loop.stop()
+    RawFirehose().run()
 
 if __name__ == "__main__":
     app()

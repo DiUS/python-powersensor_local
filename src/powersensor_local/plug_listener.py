@@ -1,9 +1,20 @@
 import asyncio
 import json
-import socket
-import time
 
-from async_event_emitter import AsyncEventEmitter
+import sys
+from pathlib import Path
+
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from powersensor_local.async_event_emitter import AsyncEventEmitter
+
+
+async def _send_subscribe(writer):
+    writer.write(b'subscribe(60)\n')
+    await writer.drain()
+
 
 class PlugListener(AsyncEventEmitter):
     """An interface class for accessing the event stream from a single plug.
@@ -68,7 +79,7 @@ class PlugListener(AsyncEventEmitter):
             reader, writer = await asyncio.open_connection(self._ip, self._port)
             self._connection = (reader, writer)
 
-            await self._send_subscribe(writer)
+            await _send_subscribe(writer)
             backoff = 1
 
             await self.emit('connected')
@@ -80,7 +91,7 @@ class PlugListener(AsyncEventEmitter):
             # Handle disconnection and retry with exponential backoff
             await self._close_connection()
             if self._disconnecting:
-                return
+                return None
             await asyncio.sleep(min(5 * 60, 2**backoff * 1))
             return await self._do_connection(backoff)
 
@@ -94,14 +105,10 @@ class PlugListener(AsyncEventEmitter):
                 typ = message['type']
                 if typ == 'subscription':
                     if message['subtype'] == 'warning':
-                        await self._send_subscribe(writer)
+                        await _send_subscribe(writer)
                 elif typ == 'discovery':
                     pass
                 else:
                     await self.emit('message', message)
-            except (json.decoder.JSONDecodeError) as ex:
+            except json.decoder.JSONDecodeError as ex:
                 print(f"JSON error {ex} from {data}")
-
-    async def _send_subscribe(self, writer):
-        writer.write(b'subscribe(60)\n')
-        await writer.drain()

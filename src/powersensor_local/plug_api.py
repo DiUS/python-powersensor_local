@@ -1,6 +1,13 @@
-from async_event_emitter import AsyncEventEmitter
-from plug_listener import PlugListener
-from xlatemsg import translate_raw_message
+import sys
+from pathlib import Path
+
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from powersensor_local.async_event_emitter import AsyncEventEmitter
+from powersensor_local.plug_listener import PlugListener
+from powersensor_local.xlatemsg import translate_raw_message
 
 class PlugApi(AsyncEventEmitter):
     """
@@ -46,21 +53,20 @@ class PlugApi(AsyncEventEmitter):
     async def _on_message(self, _, message):
         """Translates the raw message and emits the resulting messages, if any.
 
-        Also synthesises 'now_relaying_for' messages as needed.
+        Also synthesizes 'now_relaying_for' messages as needed.
         """
-        evs = None
         try:
             evs = translate_raw_message(message, self._mac)
         except KeyError:
             # Ignore malformed messages
             return
 
-        msgmac = message.get('mac')
-        if msgmac != self._mac and msgmac not in self._seen:
-            self._seen.add(msgmac)
+        message_mac = message.get('mac')
+        if message_mac != self._mac and message_mac not in self._seen:
+            self._seen.add(message_mac)
             # We want to emit this prior to events with data
             ev = {
-                'mac': msgmac,
+                'mac': message_mac,
                 'device_type': message.get('device'),
                 'role': message.get('role'),
             }

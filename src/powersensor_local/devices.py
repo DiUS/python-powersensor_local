@@ -1,60 +1,86 @@
 import asyncio
-import json
-
 from datetime import datetime, timezone
 
-from .listener import PowersensorListener
-from .xlatemsg import translate_raw_message
+import sys
+from pathlib import Path
 
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+
+from powersensor_local.listener import PowersensorListener
+from powersensor_local.xlatemsg import translate_raw_message
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60
+
+
+def _make_events(obj, relayer):
+    evs = []
+    kvs = translate_raw_message(obj, relayer)
+    for key, ev in kvs.items():
+        ev['event'] = key
+        evs.append(ev)
+
+    return evs
+
 
 class PowersensorDevices:
     """Abstraction interface for the unified event stream from all Powersensor 
     devices on the local network.
     """
 
-    def __init__(self, bcast_addr='<broadcast>'):
+    def __init__(self, broadcast_address='<broadcast>'):
         """Creates a fresh instance, without scanning for devices."""
+
         self._event_cb = None
-        self._ps = PowersensorListener(bcast_addr)
+        self._ps = PowersensorListener(broadcast_address)
         self._devices = dict()
         self._timer = None
 
-    async def start(self, async_event_cb):
+    async def start(self, async_event_callback):
         """Registers the async event callback function and starts the scan
         of the local network to discover present devices. The callback is
         of the form
 
-        async def yourcallback(event: dict)
+        Parameters:
+        -----------
+        async_event_callback : Callable
 
-        Known events:
+            A callable asynchronous method for handling json messages. Example::
 
-        scan_complete:
-            Indicates the discovery of Powersensor devices has completed.
-            Emitted in response to start() and rescan() calls.
-            The number of found gateways (plugs) is reported.
+                async def your_callback(event: dict):
+                    pass
 
-            { event: "scan_complete", gateway_count: N }
 
-        device_found:
-            A new device found on the network.
-            The order found devices are announced is not fixed.
+        Known Events:
+        -------------
+            * scan_complete
 
-            { event: "device_found",
-              device_type: "plug" or "sensor",
-              mac: "...",
-            }
+                Indicates the discovery of Powersensor devices has completed.
+                Emitted in response to start() and rescan() calls.
+                The number of found gateways (plugs) is reported.::
 
-            An optional field named "via" is present for sensor devices, and
-            shows the MAC address of the gateway the sensor is communicating
-            via.
+                    { event: "scan_complete", gateway_count: N }
 
-        device_lost:
-            A device appears to no longer be present on the network.
+            * device_found
 
-            { event: "device_lost", mac: "..." }
+                A new device found on the network.
+                The order found devices are announced is not fixed.::
 
+                    { event: "device_found",
+                      device_type: "plug" or "sensor",
+                      mac: "...",
+                    }
+
+                An optional field named "via" is present for sensor devices, and
+                shows the MAC address of the gateway the sensor is communicating
+                via.
+
+            * device_lost
+                A device appears to no longer be present on the network.::
+
+                    { event: "device_lost", mac: "..." }
 
         Additionally, all events described in xlatemsg.translate_raw_message
         may be issued. The event name is inserted into the field 'event'.
@@ -65,7 +91,8 @@ class PowersensorDevices:
         on the network, but are instead detected when they relay data through
         a plug via long-range radio.
         """
-        self._event_cb = async_event_cb
+
+        self._event_cb = async_event_callback
         await self._on_scanned(await self._ps.scan())
         self._timer = self._Timer(EXPIRY_CHECK_INTERVAL_S, self._on_timer)
         return len(self._ips)
@@ -120,7 +147,7 @@ class PowersensorDevices:
 
         if self._event_cb and device.subscribed:
             relayer = obj.get('via') or mac
-            evs = self._mk_events(obj, relayer)
+            evs = _make_events(obj, relayer)
             if len(evs) > 0:
                 for ev in evs:
                     await self._event_cb(ev)
@@ -152,15 +179,6 @@ class PowersensorDevices:
                     'mac': mac
                 }
                 await self._event_cb(ev)
-
-    def _mk_events(self, obj, relayer):
-        evs = []
-        kvs = translate_raw_message(obj, relayer)
-        for key, ev in kvs.items():
-            ev['event'] = key
-            evs.append(ev)
-
-        return evs
 
     ### Supporting classes ###
 

@@ -1,13 +1,18 @@
 import asyncio
 import json
 import socket
-import time
 
 PORT = 49476
 DISCOVERY_TIMEOUT_S = 2
 
+
+async def _send_subscribe(writer):
+    writer.write(b'subscribe(60)\n')
+    await writer.drain()
+
+
 class PowersensorListener(asyncio.DatagramProtocol):
-    def __init__(self, bcast_addr='<broadcast>'):
+    def __init__(self, broadcast_address='<broadcast>'):
         """Initialises a listener object.
         Optionally takes the broadcast address to use.
         """
@@ -16,7 +21,7 @@ class PowersensorListener(asyncio.DatagramProtocol):
         self._tasks = dict()
         self._callback = None
         self._exiting = False
-        self._bcast = bcast_addr
+        self._broadcast = broadcast_address
 
     async def scan(self):
         """Scans the local network for discoverable devices with a timeout.
@@ -34,7 +39,7 @@ class PowersensorListener(asyncio.DatagramProtocol):
 
         timeout = DISCOVERY_TIMEOUT_S
         while timeout > 0:
-            transport.sendto(message, (self._bcast, PORT))
+            transport.sendto(message, (self._broadcast, PORT))
             await asyncio.sleep(0.5)
             timeout -= 0.5
 
@@ -61,11 +66,7 @@ class PowersensorListener(asyncio.DatagramProtocol):
                 self._tasks[ip] = asyncio.create_task(
                     self._connect_to_device(ip, mac))
 
-    async def _send_subscribe(self, writer):
-        writer.write(b'subscribe(60)\n')
-        await writer.drain()
-
-    async def _processline(self, ip, mac, reader, writer):
+    async def _process_line(self, _, mac, reader, writer):
         data = await reader.readline()
         if data == b'':
             reader.feed_eof()
@@ -78,14 +79,14 @@ class PowersensorListener(asyncio.DatagramProtocol):
                 typ = message['type']
                 if typ == 'subscription':
                     if message['subtype'] == 'warning':
-                        await self._send_subscribe(writer)
+                        await _send_subscribe(writer)
                 elif typ == 'discovery':
                     pass
                 else:
                     if message.get('device') == 'sensor':
                         message['via'] = mac
                     await self._callback(message)
-            except (json.decoder.JSONDecodeError) as ex:
+            except json.decoder.JSONDecodeError as ex:
                 print(f"JSON error {ex} from {data}")
 
     async def _connect_to_device(self, ip, mac, backoff=0):
@@ -95,11 +96,11 @@ class PowersensorListener(asyncio.DatagramProtocol):
             reader, writer = await asyncio.open_connection(ip, PORT)
             self._connections[ip] = (reader, writer)
 
-            await self._send_subscribe(writer)
+            await _send_subscribe(writer)
             backoff = 1
 
             while not self._exiting:
-                await self._processline(ip, mac, reader, writer)
+                await self._process_line(ip, mac, reader, writer)
 
         except (ConnectionResetError, asyncio.TimeoutError):
             # Handle disconnection and retry with exponential backoff

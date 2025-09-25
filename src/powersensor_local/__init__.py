@@ -1,17 +1,35 @@
 """Direct (non-cloud) interface to Powersensor devices
 
-This package contains two abstraction layers:
+This package contains various abstractions for interacting with Powersensor
+devices on the local network.
 
-• PowersensorDevices is the main API layer
-• PowersensorListener provides a lower-level abstraction
+The recommended approach is to use mDNS to discover plugs via their service
+"_powersensor._tcp.local", and then instantiate a PlugApi to obtain the event
+stream from each plug.
 
-These are both available within this namespace, or specifically as
-devices.PowersensorDevices and listener.PowersensorListener
+A legacy abstraction is also provided via PowersensorDevices, which uses
+an older way of discovering plugs.
 
-The 'events' and 'rawfirehose' modules are helper utilities provided as
-debug aids, which get installed under the names ps-events and ps-rawfirehose
-respectively.
+Lower-level interfaces are available in the PlugListener and
+PowersensorListener classed, though they are not recommended for general use.
+
+Additionally a convience abstraction for translating some of the events into
+a household view is available in VirtualHousehold.
+
+Quick overview:
+• PlugApi is the recommended API layer
+• PlugListener is the lower-level abstraction used by PlugApi
+• PowersensorDevices is the legacy main API layer
+• PowersensorListener provides a (legacy) lower-level abstraction
+• VirtualHousehold can be used to translate events into a household view
+
+The 'plugevents' and 'rawplug' modules are helper utilities provided as
+debug aids, which get installed under the names ps-plugevents and ps-rawplug
+respectively. There are also the legacy 'events' and 'rawfirehose' debug aids
+which get installed under the names ps-events and ps-rawfirehose respectively.
 """
-__all__ = [ 'devices', 'listener' ]
+__all__ = [ 'devices', 'listener', 'plug_api', 'plug_listener' ]
 from .devices import PowersensorDevices
 from .listener import PowersensorListener
+from .plug_api import PlugApi
+from .plug_listener import PlugListener

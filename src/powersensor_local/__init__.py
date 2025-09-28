@@ -12,10 +12,8 @@ The 'events' and 'rawfirehose' modules are helper utilities provided as
 debug aids, which get installed under the names ps-events and ps-rawfirehose
 respectively.
 """
-__all__ = [ 'devices', 'listener', 'plug_api' ]
-
-__version__ = "2.0.0"
-
+__all__ = [ 'devices', 'listener', 'plug_api', 'plug_listener' ]
 from .devices import PowersensorDevices
 from .listener import PowersensorListener
 from .plug_api import PlugApi
+from .plug_listener import PlugListener

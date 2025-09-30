@@ -3,7 +3,13 @@ import json
 import socket
 import time
 
-from async_event_emitter import AsyncEventEmitter
+import sys
+from pathlib import Path
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from powersensor_local.async_event_emitter import AsyncEventEmitter
 
 class PlugListener(AsyncEventEmitter):
     """An interface class for accessing the event stream from a single plug.

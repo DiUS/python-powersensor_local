@@ -1,6 +1,12 @@
 """Abstraction for producing a household view."""
 
-from async_event_emitter import AsyncEventEmitter
+import sys
+from pathlib import Path
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from powersensor_local.async_event_emitter import AsyncEventEmitter
 from dataclasses import dataclass
 from typing import Optional
 

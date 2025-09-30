@@ -28,8 +28,9 @@ debug aids, which get installed under the names ps-plugevents and ps-rawplug
 respectively. There are also the legacy 'events' and 'rawfirehose' debug aids
 which get installed under the names ps-events and ps-rawfirehose respectively.
 """
-__all__ = [ 'devices', 'listener', 'plug_api', 'plug_listener' ]
+__all__ = [ 'devices', 'listener', 'plug_api', 'plug_listener', 'virtual_household' ]
 from .devices import PowersensorDevices
 from .listener import PowersensorListener
 from .plug_api import PlugApi
 from .plug_listener import PlugListener
+from .virtual_household import VirtualHousehold

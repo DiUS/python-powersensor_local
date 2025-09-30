@@ -1,6 +1,12 @@
-from async_event_emitter import AsyncEventEmitter
-from plug_listener import PlugListener
-from xlatemsg import translate_raw_message
+import sys
+from pathlib import Path
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from powersensor_local.async_event_emitter import AsyncEventEmitter
+from powersensor_local.plug_listener import PlugListener
+from powersensor_local.xlatemsg import translate_raw_message
 
 class PlugApi(AsyncEventEmitter):
     """

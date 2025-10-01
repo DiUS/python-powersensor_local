@@ -1,20 +1,15 @@
 import asyncio
 import json
+import socket
+import time
 
 import sys
 from pathlib import Path
-
 project_root = str(Path(__file__).parents[1])
 if project_root not in sys.path:
     sys.path.append(project_root)
 
 from powersensor_local.async_event_emitter import AsyncEventEmitter
-
-
-async def _send_subscribe(writer):
-    writer.write(b'subscribe(60)\n')
-    await writer.drain()
-
 
 class PlugListener(AsyncEventEmitter):
     """An interface class for accessing the event stream from a single plug.
@@ -24,8 +19,11 @@ class PlugListener(AsyncEventEmitter):
       - ("disconnected") When a connection is dropped, be it intentional or not.
       - ("message",{...}) For each event message received from the plug. The
       plug's JSON message is decoded into a dict which is passed as the second
-      argument to the registered event handler(s). The event handlers must be
-      async.
+      argument to the registered event handler(s).
+      - ("malformed",line) If JSON decoding of a message fails. The raw line
+      is included (as a byte string).
+
+      The event handlers must be async.
     """
 
     def __init__(self, ip, port=49476):
@@ -72,6 +70,8 @@ class PlugListener(AsyncEventEmitter):
             await self.emit('disconnected')
 
     async def _do_connection(self, backoff = 0):
+        if self._disconnecting:
+            return
         if backoff < 9:
             backoff += 1
         try:
@@ -79,7 +79,7 @@ class PlugListener(AsyncEventEmitter):
             reader, writer = await asyncio.open_connection(self._ip, self._port)
             self._connection = (reader, writer)
 
-            await _send_subscribe(writer)
+            await self._send_subscribe(writer)
             backoff = 1
 
             await self.emit('connected')
@@ -91,7 +91,7 @@ class PlugListener(AsyncEventEmitter):
             # Handle disconnection and retry with exponential backoff
             await self._close_connection()
             if self._disconnecting:
-                return None
+                return
             await asyncio.sleep(min(5 * 60, 2**backoff * 1))
             return await self._do_connection(backoff)
 
@@ -105,10 +105,14 @@ class PlugListener(AsyncEventEmitter):
                 typ = message['type']
                 if typ == 'subscription':
                     if message['subtype'] == 'warning':
-                        await _send_subscribe(writer)
+                        await self._send_subscribe(writer)
                 elif typ == 'discovery':
                     pass
                 else:
                     await self.emit('message', message)
-            except json.decoder.JSONDecodeError as ex:
-                print(f"JSON error {ex} from {data}")
+            except (json.decoder.JSONDecodeError) as ex:
+                await self.emit('malformed', data)
+
+    async def _send_subscribe(self, writer):
+        writer.write(b'subscribe(60)\n')
+        await writer.drain()

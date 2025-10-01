@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-
 project_root = str(Path(__file__).parents[1])
 if project_root not in sys.path:
     sys.path.append(project_root)
@@ -53,20 +52,21 @@ class PlugApi(AsyncEventEmitter):
     async def _on_message(self, _, message):
         """Translates the raw message and emits the resulting messages, if any.
 
-        Also synthesizes 'now_relaying_for' messages as needed.
+        Also synthesises 'now_relaying_for' messages as needed.
         """
+        evs = None
         try:
             evs = translate_raw_message(message, self._mac)
         except KeyError:
             # Ignore malformed messages
             return
 
-        message_mac = message.get('mac')
-        if message_mac != self._mac and message_mac not in self._seen:
-            self._seen.add(message_mac)
+        msgmac = message.get('mac')
+        if msgmac != self._mac and msgmac not in self._seen:
+            self._seen.add(msgmac)
             # We want to emit this prior to events with data
             ev = {
-                'mac': message_mac,
+                'mac': msgmac,
                 'device_type': message.get('device'),
                 'role': message.get('role'),
             }

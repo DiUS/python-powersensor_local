@@ -19,8 +19,11 @@ class PlugListener(AsyncEventEmitter):
       - ("disconnected") When a connection is dropped, be it intentional or not.
       - ("message",{...}) For each event message received from the plug. The
       plug's JSON message is decoded into a dict which is passed as the second
-      argument to the registered event handler(s). The event handlers must be
-      async.
+      argument to the registered event handler(s).
+      - ("malformed",line) If JSON decoding of a message fails. The raw line
+      is included (as a byte string).
+
+      The event handlers must be async.
     """
 
     def __init__(self, ip, port=49476):
@@ -67,6 +70,8 @@ class PlugListener(AsyncEventEmitter):
             await self.emit('disconnected')
 
     async def _do_connection(self, backoff = 0):
+        if self._disconnecting:
+            return
         if backoff < 9:
             backoff += 1
         try:
@@ -106,7 +111,7 @@ class PlugListener(AsyncEventEmitter):
                 else:
                     await self.emit('message', message)
             except (json.decoder.JSONDecodeError) as ex:
-                print(f"JSON error {ex} from {data}")
+                await self.emit('malformed', data)
 
     async def _send_subscribe(self, writer):
         writer.write(b'subscribe(60)\n')

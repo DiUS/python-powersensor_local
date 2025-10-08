@@ -1,10 +1,16 @@
 import asyncio
 import json
+import sys
 
 from datetime import datetime, timezone
+from pathlib import Path
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
-from .listener import PowersensorListener
-from .xlatemsg import translate_raw_message
+from powersensor_local.legacy_discovery import LegacyDiscovery
+from powersensor_local.plug_api import PlugApi
+from powersensor_local.xlatemsg import translate_raw_message
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60
@@ -17,9 +23,10 @@ class PowersensorDevices:
     def __init__(self, bcast_addr='<broadcast>'):
         """Creates a fresh instance, without scanning for devices."""
         self._event_cb = None
-        self._ps = PowersensorListener(bcast_addr)
+        self._discovery = LegacyDiscovery(bcast_addr)
         self._devices = dict()
         self._timer = None
+        self._plug_apis = dict()
 
     async def start(self, async_event_cb):
         """Registers the async event callback function and starts the scan
@@ -46,10 +53,6 @@ class PowersensorDevices:
               mac: "...",
             }
 
-            An optional field named "via" is present for sensor devices, and
-            shows the MAC address of the gateway the sensor is communicating
-            via.
-
         device_lost:
             A device appears to no longer be present on the network.
 
@@ -66,20 +69,21 @@ class PowersensorDevices:
         a plug via long-range radio.
         """
         self._event_cb = async_event_cb
-        await self._on_scanned(await self._ps.scan())
+        await self._on_scanned(await self._discovery.scan())
         self._timer = self._Timer(EXPIRY_CHECK_INTERVAL_S, self._on_timer)
-        return len(self._ips)
+        return len(self._plug_apis)
 
     async def rescan(self):
         """Performs a fresh scan of the network to discover added devices,
         or devices which have changed their IP address for some reason."""
-        await self._on_scanned(await self._ps.scan())
+        await self._on_scanned(await self._discovery.scan())
 
     async def stop(self):
         """Stops the event streaming and disconnects from the devices.
         To restart the event streaming, call start() again."""
-        await self._ps.unsubscribe()
-        await self._ps.stop()
+        for plug in self._plug_apis.values():
+            await plug.disconnect()
+        self._plug_apis = dict()
         self._event_cb = None
         if self._timer:
             self._timer.terminate()
@@ -97,33 +101,48 @@ class PowersensorDevices:
         if device:
             device.subscribed = False
 
-    async def _on_scanned(self, ips):
-        self._ips = ips
-        if self._event_cb:
-            ev = {
-                'event': 'scan_complete',
-                'gateway_count': len(ips),
-            }
-            await self._event_cb(ev)
+    async def _emit_if_subscribed(self, ev, obj):
+        if self._event_cb is None:
+            return
+        device = self._devices.get(obj.get('mac'))
+        if device is not None and device.subscribed:
+            obj['event'] = ev
+            await self._event_cb(obj)
 
-        await self._ps.subscribe(self._on_msg)
+    async def _reemit(self, ev, obj):
+        mac = obj['mac']
+        device = self._devices.get(mac)
+        if device is not None:
+            device.mark_active()
 
-    async def _on_msg(self, obj):
-        mac = obj.get('mac')
-        if mac and not self._devices.get(mac):
-            typ = obj.get('device')
-            via = obj.get('via')
-            await self._add_device(mac, typ, via)
+        if ev == 'now_relaying_for':
+            await self._add_device(mac, 'sensor')
+        else:
+            await self._emit_if_subscribed(ev, obj)
 
-        device = self._devices[mac]
-        device.mark_active()
+    async def _on_scanned(self, found):
+        for device in found:
+            mac = device['id']
+            ip = device['ip']
+            if not mac in self._devices:
+                await self._add_device(mac, 'plug')
+                api = PlugApi(mac, ip)
+                self._plug_apis[mac] = api
+                api.subscribe('average_flow', self._reemit)
+                api.subscribe('average_power', self._reemit)
+                api.subscribe('average_power_components', self._reemit)
+                api.subscribe('battery_level', self._reemit)
+                api.subscribe('exception', self._reemit)
+                api.subscribe('now_relaying_for', self._reemit)
+                api.subscribe('radio_signal_quality', self._reemit)
+                api.subscribe('summation_energy', self._reemit)
+                api.subscribe('summation_volume', self._reemit)
+                api.connect()
 
-        if self._event_cb and device.subscribed:
-            relayer = obj.get('via') or mac
-            evs = self._mk_events(obj, relayer)
-            if len(evs) > 0:
-                for ev in evs:
-                    await self._event_cb(ev)
+        await self._event_cb({
+            'event': 'scan_complete',
+            'gateway_count': len(found),
+        })
 
     async def _on_timer(self):
         devices = list(self._devices.values())
@@ -131,44 +150,29 @@ class PowersensorDevices:
             if device.has_expired():
                 await self._remove_device(device.mac)
 
-    async def _add_device(self, mac, typ, via):
-        self._devices[mac] = self._Device(mac, typ, via)
-        if self._event_cb:
-            ev = {
-                'event': 'device_found',
-                'device_type': typ,
-                'mac': mac,
-            }
-            if via:
-                ev['via'] = via
-            await self._event_cb(ev)
+    async def _add_device(self, mac, typ):
+        if mac in self._devices:
+            return
+        self._devices[mac] = self._Device(mac)
+        await self._event_cb({
+            'event': 'device_found',
+            'mac': mac,
+            'device_type:': typ,
+        })
 
     async def _remove_device(self, mac):
-        if self._devices.get(mac):
+        if mac in self._devices:
             self._devices.pop(mac)
-            if self._event_cb:
-                ev = {
-                    'event': 'device_lost',
-                    'mac': mac
-                }
-                await self._event_cb(ev)
-
-    def _mk_events(self, obj, relayer):
-        evs = []
-        kvs = translate_raw_message(obj, relayer)
-        for key, ev in kvs.items():
-            ev['event'] = key
-            evs.append(ev)
-
-        return evs
+            await self._event_cb({
+                'event': 'device_lost',
+                'mac': mac,
+            })
 
     ### Supporting classes ###
 
     class _Device:
-        def __init__(self, mac, typ, via):
+        def __init__(self, mac):
             self.mac = mac
-            self.type = typ
-            self.via = via
             self.subscribed = False
             self._last_active = datetime.now(timezone.utc)
 

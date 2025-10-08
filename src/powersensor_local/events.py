@@ -9,14 +9,12 @@ import os
 import signal
 import sys
 
-if __name__ == "__main__":
-    # Make CLI runnable from source tree
-    package_source_path = os.path.dirname(os.path.dirname(__file__))
-    sys.path.insert(0, package_source_path)
-    __package__ = "powersensor_local"
+from pathlib import Path
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
-from .devices import PowersensorDevices
-
+from powersensor_local.devices import PowersensorDevices
 
 exiting = False
 devices = None

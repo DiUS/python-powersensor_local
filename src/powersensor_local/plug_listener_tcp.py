@@ -1,7 +1,5 @@
 import asyncio
 import json
-import socket
-import time
 
 import sys
 from pathlib import Path

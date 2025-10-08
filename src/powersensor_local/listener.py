@@ -1,7 +1,6 @@
 import asyncio
 import json
 import socket
-import time
 
 PORT = 49476
 DISCOVERY_TIMEOUT_S = 2

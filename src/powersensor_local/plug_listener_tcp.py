@@ -11,7 +11,7 @@ if project_root not in sys.path:
 
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
-class PlugListener(AsyncEventEmitter):
+class PlugListenerTcp(AsyncEventEmitter):
     """An interface class for accessing the event stream from a single plug.
     The following events may be emitted:
       - ("connecting")   Whenever a connection attempt is made.
@@ -27,7 +27,7 @@ class PlugListener(AsyncEventEmitter):
     """
 
     def __init__(self, ip, port=49476):
-        """Initialises a PlugListener object, bound to the given IP address.
+        """Initialises a PlugListenerTcp object, bound to the given IP address.
         The port number may be overridden if necessary."""
         super().__init__()
         self._ip = ip

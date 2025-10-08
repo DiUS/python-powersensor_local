@@ -25,7 +25,7 @@ async def on_evt_msg(evt, msg):
 
 async def main():
     if len(sys.argv) < 3:
-        print(f"Syntax: {sys.argv[0]} <id> <ip> [port]")
+        print(f"Syntax: {sys.argv[0]} <id> <ip> [port] [proto]")
         sys.exit(1)
 
     # Signal handler for Ctrl+C
@@ -36,7 +36,7 @@ async def main():
     signal.signal(signal.SIGINT, handle_sigint)
 
     global plug
-    plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:3])
+    plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:5])
     known_evs = [
         'exception',
         'average_flow',

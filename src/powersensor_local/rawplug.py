@@ -7,7 +7,8 @@ import asyncio
 import os
 import signal
 import sys
-from plug_listener import PlugListener
+from plug_listener_tcp import PlugListenerTcp
+from plug_listener_udp import PlugListenerUdp
 
 exiting = False
 plug = None
@@ -28,7 +29,7 @@ async def on_evt(evt):
 
 async def main():
     if len(sys.argv) < 2:
-        print(f"Syntax: {sys.argv[0]} <ip> [port]")
+        print(f"Syntax: {sys.argv[0]} <ip> [port] [proto]")
         sys.exit(1)
 
     # Signal handler for Ctrl+C
@@ -38,8 +39,18 @@ async def main():
 
     signal.signal(signal.SIGINT, handle_sigint)
 
+    proto='udp'
+    if len(sys.argv) >= 4:
+        proto = sys.argv[3]
+
     global plug
-    plug = PlugListener(sys.argv[1], *sys.argv[2:2])
+    if proto == 'udp':
+        plug = PlugListenerUdp(sys.argv[1], *sys.argv[2:3])
+    elif proto == 'tcp':
+        plug = PlugListenerTcp(sys.argv[1], *sys.argv[2:3])
+    else:
+        print('Unsupported protocol:', proto)
+        sys.exit(1)
     plug.subscribe('exception', on_evt_msg)
     plug.subscribe('message', on_evt_msg)
     plug.subscribe('connecting', on_evt)

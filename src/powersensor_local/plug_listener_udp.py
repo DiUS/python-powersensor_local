@@ -1,0 +1,135 @@
+import asyncio
+import json
+import socket
+import sys
+
+from pathlib import Path
+project_root = str(Path(__file__).parents[1])
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from powersensor_local.async_event_emitter import AsyncEventEmitter
+
+class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
+    """An interface class for accessing the event stream from a single plug.
+    The following events may be emitted:
+      - ("connecting")   Whenever a connection attempt is made.
+      - ("connected")    When a connection is successful.
+      - ("disconnected") When a connection is dropped, be it intentional or not.
+      - ("message",{...}) For each event message received from the plug. The
+      plug's JSON message is decoded into a dict which is passed as the second
+      argument to the registered event handler(s).
+      - ("malformed",line) If JSON decoding of a message fails. The raw line
+      is included (as a byte string).
+
+      The event handlers must be async.
+    """
+
+    def __init__(self, ip, port=49476):
+        """Initialises a PlugListener object, bound to the given IP address.
+        The port number may be overridden if necessary."""
+        super().__init__()
+        self._ip = ip
+        self._port = port
+        self._backoff = 0               # exponential backoff
+        self._transport = None          # UDP transport/socket
+        self._reconnect = None          # reconnect timer
+        self._disconnecting = False     # disconnecting flag
+        self._was_connected = False     # 'disconnected' event armed?
+
+    def connect(self):
+        """Initiates the connection to the plug. The object will automatically
+        retry as necessary if/when it can't connect to the plug, until such
+        a time disconnect() is called."""
+        self._disconnecting = False
+        self._backoff = 0
+        if self._transport is None:
+            asyncio.create_task(self._do_connection())
+
+    async def disconnect(self):
+        """Goes through the disconnection process towards a plug. No further
+        automatic reconnects will take place, until connect() is called."""
+        self._disconnecting = True
+
+        await self._close_connection()
+
+    async def _close_connection(self, unsub = True):
+        if self._reconnect is not None:
+            self._reconnect.cancel()
+            self._reconnect = None
+
+        if self._transport is not None:
+            if unsub:
+                self._transport.sendto(b'subscribe(0)\n')
+            self._transport.close()
+            self._transport = None
+
+        if self._was_connected:
+            await self.emit('disconnected')
+        self._was_connected = False
+
+        if not self._disconnecting:
+            await self._do_connection()
+
+    def _retry(self):
+        self._reconnect = None
+        asyncio.create_task(self._do_connection())
+
+    async def _do_connection(self):
+        if self._disconnecting:
+            return
+        if self._backoff < 9:
+            self._backoff += 1
+        await self.emit('connecting')
+        loop = asyncio.get_running_loop()
+        await loop.create_datagram_endpoint(
+            self.protocol_factory,
+            family = socket.AF_INET,
+            remote_addr = (self._ip, self._port))
+        self._reconnect = loop.call_later(
+            min(5*60, 2**self._backoff + 2), self._retry)
+
+    def _send_subscribe(self):
+        if self._transport is not None:
+            self._transport.sendto(b'subscribe(60)\n')
+
+    # DatagramProtocol support below
+
+    def protocol_factory(self):
+        return self
+
+    def connection_made(self, transport):
+        self._transport = transport
+        self._send_subscribe()
+
+    def datagram_received(self, data, addr):
+        if self._reconnect is not None:
+            self._reconnect.cancel()
+            self._reconnect = None
+            self._backoff = 0
+            asyncio.create_task(self.emit('connected'))
+
+        if not self._was_connected:
+            self._was_connected = True
+
+        lines = data.decode('utf-8').splitlines()
+        for line in lines:
+            try:
+                message = json.loads(line)
+                typ = message['type']
+                if typ == 'subscription':
+                    if message['subtype'] == 'warning':
+                        self._send_subscribe()
+                elif typ == 'discovery':
+                    pass
+                else:
+                    asyncio.create_task(self.emit('message', message))
+            except (json.decoder.JSONDecodeError) as ex:
+                asyncio.create_task(self.emit('malformed', data))
+
+    def error_received(self, exc):
+        asyncio.create_task(self._close_connection(False))
+
+    def connection_lost(self, exc):
+        if self._transport is not None:
+            asyncio.create_task(self._close_connection(False))

@@ -22,7 +22,6 @@ Issues = "https://github.com/DiUS/python-powersensor_local/issues"
 
 [project.scripts]
 ps-events = "powersensor_local.events:app"
-ps-rawfirehose = "powersensor_local.rawfirehose:app"
 ps-rawplug = "powersensor_local.rawplug:app"
 ps-plugevents = "powersensor_local.plugevents:app"
 

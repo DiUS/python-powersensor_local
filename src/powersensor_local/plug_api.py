@@ -5,7 +5,8 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from powersensor_local.async_event_emitter import AsyncEventEmitter
-from powersensor_local.plug_listener import PlugListener
+from powersensor_local.plug_listener_tcp import PlugListenerTcp
+from powersensor_local.plug_listener_udp import PlugListenerUdp
 from powersensor_local.xlatemsg import translate_raw_message
 
 class PlugApi(AsyncEventEmitter):
@@ -19,7 +20,7 @@ class PlugApi(AsyncEventEmitter):
     documented in xlatemsg.translate_raw_message.
     """
 
-    def __init__(self, mac, ip, port=49476):
+    def __init__(self, mac, ip, port=49476, proto='udp'):
         """
         Instantiates a new PlugApi for the given plug.
 
@@ -27,11 +28,17 @@ class PlugApi(AsyncEventEmitter):
           - mac: The MAC address of the plug (typically found in the "id" field
             in the mDNS/ZeroConf discovery).
           - ip: The IP address of the plug.
-          - port: The TCP port number of the API service on the plug.
+          - port: The port number of the API service on the plug.
+          - proto: One of 'udp' or 'tcp'.
         """
         super().__init__()
         self._mac = mac
-        self._listener = PlugListener(ip, port)
+        if proto == 'udp':
+            self._listener = PlugListenerUdp(ip, port)
+        elif proto == 'tcp':
+            self._listener = PlugListenerTcp(ip, port)
+        else:
+            raise ValueError(f'Unsupported proto: {proto}')
         self._listener.subscribe('message', self._on_message)
         self._listener.subscribe('exception', self._on_exception)
         self._seen = set()

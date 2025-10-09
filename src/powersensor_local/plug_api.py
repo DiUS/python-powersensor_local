@@ -78,3 +78,7 @@ class PlugApi(AsyncEventEmitter):
     async def _on_exception(self, _, e):
         """Propagates exceptions from the plug listener."""
         await self.emit('exception', e)
+
+    @property
+    def ip_address(self):
+        return self._listener.ip

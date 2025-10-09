@@ -114,3 +114,7 @@ class PlugListener(AsyncEventEmitter):
     async def _send_subscribe(self, writer):
         writer.write(b'subscribe(60)\n')
         await writer.drain()
+
+    @property
+    def ip(self):
+        return self._ip

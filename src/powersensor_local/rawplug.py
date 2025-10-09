@@ -12,7 +12,7 @@ project_root = str(Path(__file__).parents[ 1])
 if project_root not in sys.path:
         sys.path.append(project_root)
 
-from powersensor_local.plug_listener import PlugListener
+from powersensor_local import PlugListenerTcp,PlugListenerUdp
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 
 async def print_message_ignore_event(_, message):
@@ -22,8 +22,12 @@ async def print_event(event):
     print(event)
 
 class RawPlug(AbstractEventHandler):
-    def __init__(self):
-        self.plug: Union[PlugListener, None] = None
+    def __init__(self, protocol=None):
+        self.plug: Union[PlugListenerTcp, PlugListenerUdp, None] = None
+        if protocol is None:
+            self._protocol = 'udp'
+        else:
+            self._protocol = 'tcp'
 
     async def on_exit(self):
         if self.plug is not None:
@@ -37,8 +41,15 @@ class RawPlug(AbstractEventHandler):
 
         # Signal handler for Ctrl+C
         self.register_sigint_handler()
-
-        plug = PlugListener(sys.argv[1], *sys.argv[2:2])
+        if len(sys.argv) >= 4:
+            self._protocol = sys.argv[3]
+        plug = None
+        if self._protocol == 'udp':
+            plug = PlugListenerUdp(sys.argv[1], *sys.argv[2:3])
+        elif self._protocol == 'tcp':
+            plug = PlugListenerTcp(sys.argv[1], *sys.argv[2:3])
+        else:
+            print('Unsupported protocol:', self._protocol)
         plug.subscribe('exception', print_message_ignore_event)
         plug.subscribe('message', print_message_ignore_event)
         plug.subscribe('connecting', print_event)

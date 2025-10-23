@@ -42,6 +42,7 @@ __all__ = [
     'plug_listener_udp',
     'virtual_household'
 ]
+__version__ = "2.0.0"
 from .devices import PowersensorDevices
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi

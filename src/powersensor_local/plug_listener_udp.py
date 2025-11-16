@@ -34,6 +34,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         self._backoff = 0               # exponential backoff
         self._transport = None          # UDP transport/socket
         self._reconnect = None          # reconnect timer
+        self._inactive = None           # inactivity timer
         self._disconnecting = False     # disconnecting flag
         self._was_connected = False     # 'disconnected' event armed?
 
@@ -57,6 +58,10 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         if self._reconnect is not None:
             self._reconnect.cancel()
             self._reconnect = None
+
+        if self._inactive is not None:
+            self._inactive.cancel()
+            self._inactive = None
 
         if self._transport is not None:
             if unsub:
@@ -93,6 +98,9 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         if self._transport is not None:
             self._transport.sendto(b'subscribe(60)\n')
 
+    def _on_inactivity(self):
+        asyncio.create_task(self._close_connection())
+
     # DatagramProtocol support below
 
     def protocol_factory(self):
@@ -111,6 +119,11 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
 
         if not self._was_connected:
             self._was_connected = True
+
+        if self._inactive is not None:
+            self._inactive.cancel()
+        loop = asyncio.get_running_loop()
+        self._inactive = loop.call_later(60, self._on_inactivity)
 
         lines = data.decode('utf-8').splitlines()
         for line in lines:

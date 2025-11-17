@@ -69,7 +69,7 @@ class PlugListenerTcp(AsyncEventEmitter):
 
     async def _do_connection(self, backoff = 0):
         if self._disconnecting:
-            return
+            return None
         if backoff < 9:
             backoff += 1
         try:
@@ -89,7 +89,7 @@ class PlugListenerTcp(AsyncEventEmitter):
             # Handle disconnection and retry with exponential backoff
             await self._close_connection()
             if self._disconnecting:
-                return
+                return None
             await asyncio.sleep(min(5 * 60, 2**backoff * 1))
             return await self._do_connection(backoff)
 
@@ -108,10 +108,11 @@ class PlugListenerTcp(AsyncEventEmitter):
                     pass
                 else:
                     await self.emit('message', message)
-            except (json.decoder.JSONDecodeError) as ex:
+            except json.decoder.JSONDecodeError:
                 await self.emit('malformed', data)
 
-    async def _send_subscribe(self, writer):
+    @staticmethod
+    async def _send_subscribe(writer):
         writer.write(b'subscribe(60)\n')
         await writer.drain()
 

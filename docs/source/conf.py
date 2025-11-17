@@ -10,7 +10,7 @@ print(project_root)
 
 # Project information
 project = "powersensor_local"
-copyright = "2025, DiUS"
+copyright = "2025, DiUS" # noqa A001
 author = "Powersensor Team!"
 
 html_favicon = "_static/powersensor-logo.png"
@@ -18,8 +18,7 @@ html_logo = "_static/powersensor-logo.png"
 
 # The full version, including alpha/beta/rc tags
 try:
-    from powersensor_local import __version__
-    release = __version__
+    from powersensor_local import __version__ as release
 except ImportError:
     release = "0.1.0"
 

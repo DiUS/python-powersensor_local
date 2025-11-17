@@ -2,6 +2,9 @@
 
 import sys
 from pathlib import Path
+
+from powersensor_local.EventBuffer import EventBuffer
+
 project_root = str(Path(__file__).parents[1])
 if project_root not in sys.path:
     sys.path.append(project_root)
@@ -48,7 +51,7 @@ def same_duration(ev1: dict, ev2: dict):
     d2 = round(ev2[dur], 0)
     return d1 == d2
 
-def matching_instants(starttime_utc: int, solar_events: list, housenet_events: list) -> Optional[InstantaneousValues]:
+def matching_instants(starttime_utc: int, solar_events: EventBuffer, housenet_events: EventBuffer) -> Optional[InstantaneousValues]:
     """Attempts to match and merge solar+housenet average_power events."""
     solar = solar_events.find_by_key(KEY_START, starttime_utc)
     housenet = housenet_events.find_by_key(KEY_START, starttime_utc)
@@ -73,7 +76,7 @@ def make_instant_housenet(ev: dict) -> Optional[InstantaneousValues]:
         duration_s = round(ev[KEY_DUR_S], 0)
     )
 
-def matching_summations(starttime_utc: int, solar_events: list, housenet_events: list) -> Optional[SummationValues]:
+def matching_summations(starttime_utc: int, solar_events: EventBuffer, housenet_events: EventBuffer) -> Optional[SummationValues]:
     """Attempts to match and merge solar+housenet summation events."""
     solar = solar_events.find_by_key(KEY_START, starttime_utc)
     housenet = housenet_events.find_by_key(KEY_START, starttime_utc)
@@ -148,10 +151,10 @@ class VirtualHousehold(AsyncEventEmitter):
         self._expect_solar = with_solar
         self._summation = self.SummationInfo(0, 0, 0, 0)
         self._counters = self.Counters(0, 0, 0, 0, 0)
-        self._solar_instants = self.EventBuffer(31)
-        self._housenet_instants = self.EventBuffer(31)
-        self._solar_summations = self.EventBuffer(5)
-        self._housenet_summations = self.EventBuffer(5)
+        self._solar_instants = EventBuffer(31)
+        self._housenet_instants = EventBuffer(31)
+        self._solar_summations = EventBuffer(5)
+        self._housenet_summations = EventBuffer(5)
 
     async def process_average_power_event(self, ev: dict):
         """Ingests an event of type 'average_power'."""
@@ -186,7 +189,6 @@ class VirtualHousehold(AsyncEventEmitter):
                 await self._process_summations(starttime_utc)
 
     async def _process_instants(self, starttime_utc: int):
-        v = None
         if self._expect_solar:
             v = matching_instants(starttime_utc, self._solar_instants, self._housenet_instants)
         else:
@@ -216,7 +218,6 @@ class VirtualHousehold(AsyncEventEmitter):
             })
 
     async def _process_summations(self, starttime_utc: int):
-        v = None
         if self._expect_solar:
             v = matching_summations(starttime_utc, self._solar_summations, self._housenet_summations)
         else:
@@ -294,30 +295,6 @@ class VirtualHousehold(AsyncEventEmitter):
         self._counters.to_grid += d.to_grid
         self._counters.from_grid += d.from_grid
         self._counters.home_use += d.home_use
-
-    class EventBuffer:
-        def __init__(self, keep: int):
-            self._keep = keep
-            self._evs = []
-
-        def find_by_key(self, key: str, value: any):
-            for ev in self._evs:
-                if key in ev and ev[key] == value:
-                  return ev
-            return None
-
-        def append(self, ev: dict):
-            self._evs.append(ev)
-            if len(self._evs) > self._keep:
-                del self._evs[0]
-
-        def evict_older(self, key: str, value: float):
-            while len(self._evs) > 0:
-                ev = self._evs[0]
-                if key in ev and ev[key] <= value:
-                    del self._evs[0]
-                else:
-                    return
 
     @dataclass
     class SummationInfo:

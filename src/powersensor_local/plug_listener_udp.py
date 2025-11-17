@@ -92,7 +92,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
             family = socket.AF_INET,
             remote_addr = (self._ip, self._port))
         self._reconnect = loop.call_later(
-            min(5*60, 2**self._backoff + 2), self._retry)
+            min(5*60, 2**self._backoff + 2), self._retry) # noqa
 
     def _send_subscribe(self):
         if self._transport is not None:
@@ -123,7 +123,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         if self._inactive is not None:
             self._inactive.cancel()
         loop = asyncio.get_running_loop()
-        self._inactive = loop.call_later(60, self._on_inactivity)
+        self._inactive = loop.call_later(60, self._on_inactivity) # noqa
 
         lines = data.decode('utf-8').splitlines()
         for line in lines:
@@ -137,7 +137,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
                     pass
                 else:
                     asyncio.create_task(self.emit('message', message))
-            except (json.decoder.JSONDecodeError) as ex:
+            except json.decoder.JSONDecodeError:
                 asyncio.create_task(self.emit('malformed', data))
 
     def error_received(self, exc):

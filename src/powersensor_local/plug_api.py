@@ -59,9 +59,8 @@ class PlugApi(AsyncEventEmitter):
     async def _on_message(self, _, message):
         """Translates the raw message and emits the resulting messages, if any.
 
-        Also synthesises 'now_relaying_for' messages as needed.
+        Also synthesizes 'now_relaying_for' messages as needed.
         """
-        evs = None
         try:
             evs = translate_raw_message(message, self._mac)
         except KeyError:

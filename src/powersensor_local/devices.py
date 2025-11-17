@@ -1,5 +1,4 @@
 import asyncio
-import json
 import sys
 
 from datetime import datetime, timezone
@@ -10,7 +9,6 @@ if project_root not in sys.path:
 
 from powersensor_local.legacy_discovery import LegacyDiscovery
 from powersensor_local.plug_api import PlugApi
-from powersensor_local.xlatemsg import translate_raw_message
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60

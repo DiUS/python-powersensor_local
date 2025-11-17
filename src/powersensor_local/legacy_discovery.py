@@ -13,6 +13,7 @@ class LegacyDiscovery(asyncio.DatagramProtocol):
         """
         super().__init__()
         self._dst_addr = broadcast_addr
+        self._found = dict()
 
     async def scan(self, timeout_sec = 2.0):
         """Scans the local network for discoverable devices.

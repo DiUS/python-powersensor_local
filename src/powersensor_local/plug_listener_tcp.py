@@ -117,5 +117,9 @@ class PlugListenerTcp(AsyncEventEmitter):
         await writer.drain()
 
     @property
+    def port(self):
+        return self._port
+
+    @property
     def ip(self):
         return self._ip

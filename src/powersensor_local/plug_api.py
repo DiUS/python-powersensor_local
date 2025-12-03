@@ -88,3 +88,7 @@ class PlugApi(AsyncEventEmitter):
     @property
     def ip_address(self):
         return self._listener.ip
+
+    @property
+    def port(self):
+        return self._listener.port

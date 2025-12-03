@@ -10,6 +10,7 @@ if project_root not in sys.path:
 
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
+# @todo: dream up a base class for PlugListener that TCP/UDP subclass
 class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     """An interface class for accessing the event stream from a single plug.
     The following events may be emitted:
@@ -146,3 +147,11 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     def connection_lost(self, exc):
         if self._transport is not None:
             asyncio.create_task(self._close_connection(False))
+
+    @property
+    def port(self):
+        return self._port
+
+    @property
+    def ip(self):
+        return self._ip

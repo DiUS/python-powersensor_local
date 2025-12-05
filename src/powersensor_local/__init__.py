@@ -41,7 +41,7 @@ __all__ = [
     'PlugListenerTcp',
     'PlugListenerUdp'
 ]
-__version__ = "2.0.1"
+__version__ = "2.1.0"
 from .devices import PowersensorDevices
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi

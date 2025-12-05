@@ -1,13 +1,16 @@
+"""Common message translation support."""
 _MAC_TS_ROLE = [
   ('mac', 'mac', True),
   ('role', 'role', False),
   ('starttime', 'starttime_utc', True, 3),
 ]
 
+
+# pylint: disable=R0913,R0917
 def _pick_item(out: dict, message: dict, key: str, dstkey: str, req: bool, decis: int = None):
     val = message.get(key)
     if val is not None:
-        if type(val) == float and decis is not None:
+        if isinstance(val, float) and decis is not None:
             val = round(val, decis)
         out[dstkey] = val
     elif req:
@@ -94,7 +97,7 @@ def _make_rssi_event(message: dict):
 
 def _maybe_make_instant_power_events(out: dict, message: dict, dev: str):
     unit = message.get('unit')
-    if unit == 'W' or unit == 'w':
+    if unit in ('W', 'w'):
         out['average_power'] = _make_average_power_event(message)
         try:
             out['summation_energy'] = _make_summation_energy_event(message)
@@ -103,7 +106,7 @@ def _maybe_make_instant_power_events(out: dict, message: dict, dev: str):
         if dev == 'plug':
             out['average_power_components'] = \
                 _make_average_power_components_event(message)
-    elif unit == 'L' or unit == 'l':
+    elif unit in ('L', 'l'):
         out['average_flow'] = _make_average_flow_event(message)
         out['summation_volume'] = _make_summation_volume_event(message)
     elif unit == 'U':

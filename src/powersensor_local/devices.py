@@ -1,16 +1,16 @@
+"""Abstraction interface for unified event stream from Powersensor devices"""
 import asyncio
-import json
 import sys
 
 from datetime import datetime, timezone
 from pathlib import Path
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.legacy_discovery import LegacyDiscovery
 from powersensor_local.plug_api import PlugApi
-from powersensor_local.xlatemsg import translate_raw_message
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60
@@ -24,9 +24,9 @@ class PowersensorDevices:
         """Creates a fresh instance, without scanning for devices."""
         self._event_cb = None
         self._discovery = LegacyDiscovery(bcast_addr)
-        self._devices = dict()
+        self._devices = {}
         self._timer = None
-        self._plug_apis = dict()
+        self._plug_apis = {}
 
     async def start(self, async_event_cb):
         """Registers the async event callback function and starts the scan
@@ -83,7 +83,7 @@ class PowersensorDevices:
         To restart the event streaming, call start() again."""
         for plug in self._plug_apis.values():
             await plug.disconnect()
-        self._plug_apis = dict()
+        self._plug_apis = {}
         self._event_cb = None
         if self._timer:
             self._timer.terminate()
@@ -177,14 +177,16 @@ class PowersensorDevices:
             self._last_active = datetime.now(timezone.utc)
 
         def mark_active(self):
+            """Updates the last activity time to prevent expiry."""
             self._last_active = datetime.now(timezone.utc)
 
         def has_expired(self):
+            """Checks whether the last activity time is past the expiry."""
             now = datetime.now(timezone.utc)
             delta = now - self._last_active
             return delta.total_seconds() > EXPIRY_TIMEOUT_S
 
-    class _Timer:
+    class _Timer: # pylint: disable=R0903
         def __init__(self, interval_s, callback):
             self._terminate = False
             self._interval = interval_s
@@ -192,6 +194,7 @@ class PowersensorDevices:
             self._task = asyncio.create_task(self._run())
 
         def terminate(self):
+            """Disables the timer and cancels the associated task."""
             self._terminate = True
             self._task.cancel()
 

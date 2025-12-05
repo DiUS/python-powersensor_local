@@ -3,68 +3,71 @@
 """Utility script for accessing the raw plug subscription data from a single
 network-local Powersensor device. Intended for advanced debugging use only."""
 
-import asyncio
-import os
-import signal
+from typing import Union
 import sys
-from plug_listener_tcp import PlugListenerTcp
-from plug_listener_udp import PlugListenerUdp
 
-exiting = False
-plug = None
+from pathlib import Path
 
-async def do_exit():
-    global exiting
-    global plug
-    if plug != None:
-        await plug.disconnect()
-        del plug
-    exiting = True
+PROJECT_ROOT = str(Path(__file__).parents[ 1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
-async def on_evt_msg(_, msg):
-    print(msg)
+# pylint: disable=C0413
+from powersensor_local import PlugListenerTcp,PlugListenerUdp
+from powersensor_local.abstract_event_handler import AbstractEventHandler
 
-async def on_evt(evt):
-    print(evt)
+async def print_message_ignore_event(_, message):
+    """Callback for printing event data withou the event name."""
+    print(message)
 
-async def main():
-    if len(sys.argv) < 2:
-        print(f"Syntax: {sys.argv[0]} <ip> [port] [proto]")
-        sys.exit(1)
+async def print_event(event):
+    """Callback for printing an event."""
+    print(event)
 
-    # Signal handler for Ctrl+C
-    def handle_sigint(signum, frame):
-        signal.signal(signal.SIGINT, signal.SIG_DFL)
-        asyncio.create_task(do_exit())
+class RawPlug(AbstractEventHandler):
+    """Main logic wrapper."""
+    def __init__(self, protocol=None):
+        self.plug: Union[PlugListenerTcp, PlugListenerUdp, None] = None
+        if protocol is None:
+            self._protocol = 'udp'
+        else:
+            self._protocol = 'tcp'
 
-    signal.signal(signal.SIGINT, handle_sigint)
+    async def on_exit(self):
+        if self.plug is not None:
+            await self.plug.disconnect()
+            self.plug = None
 
-    proto='udp'
-    if len(sys.argv) >= 4:
-        proto = sys.argv[3]
+    async def main(self):
+        if len(sys.argv) < 2:
+            print(f"Syntax: {sys.argv[0]} <ip> [port]")
+            sys.exit(1)
 
-    global plug
-    if proto == 'udp':
-        plug = PlugListenerUdp(sys.argv[1], *sys.argv[2:3])
-    elif proto == 'tcp':
-        plug = PlugListenerTcp(sys.argv[1], *sys.argv[2:3])
-    else:
-        print('Unsupported protocol:', proto)
-        sys.exit(1)
-    plug.subscribe('exception', on_evt_msg)
-    plug.subscribe('message', on_evt_msg)
-    plug.subscribe('connecting', on_evt)
-    plug.subscribe('connecting', on_evt)
-    plug.subscribe('connected', on_evt)
-    plug.subscribe('disconnected', on_evt)
-    plug.connect()
+        # Signal handler for Ctrl+C
+        self.register_sigint_handler()
+        if len(sys.argv) >= 4:
+            self._protocol = sys.argv[3]
+        plug = None
+        if self._protocol == 'udp':
+            plug = PlugListenerUdp(sys.argv[1], *sys.argv[2:3])
+        elif self._protocol == 'tcp':
+            plug = PlugListenerTcp(sys.argv[1], *sys.argv[2:3])
+        else:
+            print('Unsupported protocol:', self._protocol)
+        plug.subscribe('exception', print_message_ignore_event)
+        plug.subscribe('message', print_message_ignore_event)
+        plug.subscribe('connecting', print_event)
+        plug.subscribe('connecting', print_event)
+        plug.subscribe('connected', print_event)
+        plug.subscribe('disconnected', print_event)
+        plug.connect()
 
-    # Keep the event loop running until Ctrl+C is pressed
-    while not exiting:
-        await asyncio.sleep(1)
+        # Keep the event loop running until Ctrl+C is pressed
+        await self.wait()
 
 def app():
-    asyncio.run(main())
+    """Application entry point."""
+    RawPlug().run()
 
 if __name__ == "__main__":
     app()

@@ -1,15 +1,19 @@
+"""An interface for accessing the event stream from a Powersensor plug."""
 import asyncio
 import json
 import socket
 import sys
 
 from pathlib import Path
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
+# pylint: disable=R0902
+# @todo: dream up a base class for PlugListener that TCP/UDP subclass
 class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     """An interface class for accessing the event stream from a single plug.
     The following events may be emitted:
@@ -26,8 +30,16 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     """
 
     def __init__(self, ip, port=49476):
-        """Initialises a PlugListener object, bound to the given IP address.
-        The port number may be overridden if necessary."""
+        """
+        Create a :class:`PlugListenerUdp` bound to the given IP address.
+
+        Parameters
+        ----------
+        ip : str
+            The IPv4 or IPv6 address of the plug to listen to.
+        port : int, optional
+            UDP port used by the plug (default ``49476``).
+        """
         super().__init__()
         self._ip = ip
         self._port = port
@@ -92,7 +104,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
             family = socket.AF_INET,
             remote_addr = (self._ip, self._port))
         self._reconnect = loop.call_later(
-            min(5*60, 2**self._backoff + 2), self._retry)
+            min(5*60, 2**self._backoff + 2), self._retry) # noqa
 
     def _send_subscribe(self):
         if self._transport is not None:
@@ -104,6 +116,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     # DatagramProtocol support below
 
     def protocol_factory(self):
+        """UDP protocol factory for self."""
         return self
 
     def connection_made(self, transport):
@@ -123,7 +136,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         if self._inactive is not None:
             self._inactive.cancel()
         loop = asyncio.get_running_loop()
-        self._inactive = loop.call_later(60, self._on_inactivity)
+        self._inactive = loop.call_later(60, self._on_inactivity) # noqa
 
         lines = data.decode('utf-8').splitlines()
         for line in lines:
@@ -137,7 +150,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
                     pass
                 else:
                     asyncio.create_task(self.emit('message', message))
-            except (json.decoder.JSONDecodeError) as ex:
+            except json.decoder.JSONDecodeError:
                 asyncio.create_task(self.emit('malformed', data))
 
     def error_received(self, exc):
@@ -146,3 +159,13 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     def connection_lost(self, exc):
         if self._transport is not None:
             asyncio.create_task(self._close_connection(False))
+
+    @property
+    def port(self):
+        """Return the TCP port this listener is bound to."""
+        return self._port
+
+    @property
+    def ip(self):
+        """Return the IP address this listener is bound to."""
+        return self._ip

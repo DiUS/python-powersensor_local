@@ -18,7 +18,7 @@ through a single callback.
 Lower-level interfaces are available in the PlugListenerUdp and PlugListenerTcp
 classes, though they are not recommended for general use.
 
-Additionally a convience abstraction for translating some of the events into
+Additionally, a convenience abstraction for translating some of the events into
 a household view is available in VirtualHousehold.
 
 Quick overview:
@@ -26,7 +26,7 @@ Quick overview:
 • PlugListenerUdp is the UDP lower-level abstraction used by PlugApi
 • PlugListenerTcp is the TCP lower-level abstraction used by PlugApi
 • PowersensorDevices is the legacy main API layer
-• LegadyDiscovery provides access to the legacy discovery mechanism
+• LegacyDiscovery provides access to the legacy discovery mechanism
 • VirtualHousehold can be used to translate events into a household view
 
 The 'plugevents' and 'rawplug' modules are helper utilities provided as
@@ -35,13 +35,13 @@ respectively. There is also the legacy 'events' debug aid which get installed
 nder the names ps-events, and offers up the events from PowersensorDevices.
 """
 __all__ = [
-    'devices',
-    'legacy_discovery',
-    'plug_api',
-    'plug_listener_tcp',
-    'plug_listener_udp',
-    'virtual_household'
+    'VirtualHousehold',
+    'PlugApi',
+    '__version__',
+    'PlugListenerTcp',
+    'PlugListenerUdp'
 ]
+__version__ = "2.0.1"
 from .devices import PowersensorDevices
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi

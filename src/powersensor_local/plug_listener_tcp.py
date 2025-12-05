@@ -1,12 +1,14 @@
+"""An interface for accessing the event stream from a Powersensor plug."""
 import asyncio
 import json
 
 import sys
 from pathlib import Path
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
 class PlugListenerTcp(AsyncEventEmitter):
@@ -25,8 +27,16 @@ class PlugListenerTcp(AsyncEventEmitter):
     """
 
     def __init__(self, ip, port=49476):
-        """Initialises a PlugListenerTcp object, bound to the given IP address.
-        The port number may be overridden if necessary."""
+        """
+        Create a :class:`PlugListenerTcp` bound to the given IP address.
+
+        Parameters
+        ----------
+        ip : str
+            The IPv4 or IPv6 address of the plug to listen to.
+        port : int, optional
+            TCP port used by the plug (default ``49476``).
+        """
         super().__init__()
         self._ip = ip
         self._port = port
@@ -59,7 +69,7 @@ class PlugListenerTcp(AsyncEventEmitter):
 
     async def _close_connection(self):
         if self._connection is not None:
-            (reader, writer) = self._connection
+            (_, writer) = self._connection
             self._connection = None
 
             writer.close()
@@ -69,7 +79,7 @@ class PlugListenerTcp(AsyncEventEmitter):
 
     async def _do_connection(self, backoff = 0):
         if self._disconnecting:
-            return
+            return None
         if backoff < 9:
             backoff += 1
         try:
@@ -89,7 +99,7 @@ class PlugListenerTcp(AsyncEventEmitter):
             # Handle disconnection and retry with exponential backoff
             await self._close_connection()
             if self._disconnecting:
-                return
+                return None
             await asyncio.sleep(min(5 * 60, 2**backoff * 1))
             return await self._do_connection(backoff)
 
@@ -108,9 +118,20 @@ class PlugListenerTcp(AsyncEventEmitter):
                     pass
                 else:
                     await self.emit('message', message)
-            except (json.decoder.JSONDecodeError) as ex:
+            except json.decoder.JSONDecodeError:
                 await self.emit('malformed', data)
 
-    async def _send_subscribe(self, writer):
+    @staticmethod
+    async def _send_subscribe(writer):
         writer.write(b'subscribe(60)\n')
         await writer.drain()
+
+    @property
+    def port(self):
+        """Return the TCP port this listener is bound to."""
+        return self._port
+
+    @property
+    def ip(self):
+        """Return the IP address this listener is bound to."""
+        return self._ip

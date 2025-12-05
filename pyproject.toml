@@ -4,6 +4,7 @@ dynamic = ["version"]
 description = "Network-local (non-cloud) interface for Powersensor devices"
 authors = [
   { name = "Jade Mattsson", email = "jmattsson@dius.com.au" },
+  { name = "Lake Bookman", email = "lbookman@dius.com.au" },
 ]
 readme = "README.md"
 requires-python = ">=3.11"

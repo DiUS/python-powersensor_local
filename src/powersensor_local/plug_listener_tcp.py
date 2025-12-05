@@ -1,12 +1,14 @@
+"""An interface for accessing the event stream from a Powersensor plug."""
 import asyncio
 import json
 
 import sys
 from pathlib import Path
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
 class PlugListenerTcp(AsyncEventEmitter):
@@ -25,8 +27,16 @@ class PlugListenerTcp(AsyncEventEmitter):
     """
 
     def __init__(self, ip, port=49476):
-        """Initialises a PlugListenerTcp object, bound to the given IP address.
-        The port number may be overridden if necessary."""
+        """
+        Create a :class:`PlugListenerTcp` bound to the given IP address.
+
+        Parameters
+        ----------
+        ip : str
+            The IPv4 or IPv6 address of the plug to listen to.
+        port : int, optional
+            TCP port used by the plug (default ``49476``).
+        """
         super().__init__()
         self._ip = ip
         self._port = port
@@ -59,7 +69,7 @@ class PlugListenerTcp(AsyncEventEmitter):
 
     async def _close_connection(self):
         if self._connection is not None:
-            (reader, writer) = self._connection
+            (_, writer) = self._connection
             self._connection = None
 
             writer.close()
@@ -118,8 +128,10 @@ class PlugListenerTcp(AsyncEventEmitter):
 
     @property
     def port(self):
+        """Return the TCP port this listener is bound to."""
         return self._port
 
     @property
     def ip(self):
+        """Return the IP address this listener is bound to."""
         return self._ip

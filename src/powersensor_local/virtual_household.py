@@ -2,16 +2,16 @@
 
 import sys
 from pathlib import Path
-
-from powersensor_local.EventBuffer import EventBuffer
-
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
-
-from powersensor_local.async_event_emitter import AsyncEventEmitter
 from dataclasses import dataclass
 from typing import Optional
+
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
+# pylint: disable=C0413
+from powersensor_local.async_event_emitter import AsyncEventEmitter
+from powersensor_local.event_buffer import EventBuffer
 
 KEY_DUR_S = 'duration_s'
 KEY_RESET = 'summation_resettime_utc'
@@ -20,14 +20,14 @@ KEY_SUM_J = 'summation_joules'
 KEY_WATTS = 'watts'
 
 @dataclass
-class InstantaneousValues:
+class InstantaneousValues: # pylint: disable=C0115
     starttime_utc: int
     solar_watts: float
     housenet_watts: float
     duration_s: int
 
 @dataclass
-class SummationValues:
+class SummationValues: # pylint: disable=C0115
     starttime_utc: int
     solar_summation: float
     solar_resettime: int
@@ -35,7 +35,7 @@ class SummationValues:
     housenet_resettime: int
 
 @dataclass
-class SummationDeltas:
+class SummationDeltas: # pylint: disable=C0115
     solar_generation: float
     to_grid: float
     from_grid: float
@@ -51,7 +51,10 @@ def same_duration(ev1: dict, ev2: dict):
     d2 = round(ev2[dur], 0)
     return d1 == d2
 
-def matching_instants(starttime_utc: int, solar_events: EventBuffer, housenet_events: EventBuffer) -> Optional[InstantaneousValues]:
+def matching_instants(
+        starttime_utc: int,
+        solar_events: EventBuffer,
+        housenet_events: EventBuffer) -> Optional[InstantaneousValues]:
     """Attempts to match and merge solar+housenet average_power events."""
     solar = solar_events.find_by_key(KEY_START, starttime_utc)
     housenet = housenet_events.find_by_key(KEY_START, starttime_utc)
@@ -62,8 +65,7 @@ def matching_instants(starttime_utc: int, solar_events: EventBuffer, housenet_ev
             housenet_watts = housenet[KEY_WATTS],
             duration_s = round(solar[KEY_DUR_S], 0),
         )
-    else:
-        return None
+    return None
 
 def make_instant_housenet(ev: dict) -> Optional[InstantaneousValues]:
     """Helper for case where no solar merge is expected."""
@@ -76,7 +78,10 @@ def make_instant_housenet(ev: dict) -> Optional[InstantaneousValues]:
         duration_s = round(ev[KEY_DUR_S], 0)
     )
 
-def matching_summations(starttime_utc: int, solar_events: EventBuffer, housenet_events: EventBuffer) -> Optional[SummationValues]:
+def matching_summations(
+        starttime_utc: int,
+        solar_events: EventBuffer,
+        housenet_events: EventBuffer) -> Optional[SummationValues]:
     """Attempts to match and merge solar+housenet summation events."""
     solar = solar_events.find_by_key(KEY_START, starttime_utc)
     housenet = housenet_events.find_by_key(KEY_START, starttime_utc)
@@ -88,8 +93,7 @@ def matching_summations(starttime_utc: int, solar_events: EventBuffer, housenet_
             housenet_summation = housenet[KEY_SUM_J],
             housenet_resettime = housenet[KEY_RESET],
         )
-    else:
-        return None
+    return None
 
 def make_summation_housenet(ev: dict) -> Optional[SummationValues]:
     """Helper for case where no solar merge is expected."""
@@ -219,9 +223,13 @@ class VirtualHousehold(AsyncEventEmitter):
 
     async def _process_summations(self, starttime_utc: int):
         if self._expect_solar:
-            v = matching_summations(starttime_utc, self._solar_summations, self._housenet_summations)
+            v = matching_summations(
+                starttime_utc,
+                self._solar_summations,
+                self._housenet_summations)
         else:
-            v = make_summation_housenet(self._housenet_summations.find_by_key(KEY_START, starttime_utc))
+            v = make_summation_housenet(
+                self._housenet_summations.find_by_key(KEY_START, starttime_utc))
         if v is None:
             return
 
@@ -297,14 +305,14 @@ class VirtualHousehold(AsyncEventEmitter):
         self._counters.home_use += d.home_use
 
     @dataclass
-    class SummationInfo:
+    class SummationInfo: # pylint: disable=C0115
         solar_resettime: int
         solar_last: float
         housenet_resettime: int
         housenet_last: float
 
     @dataclass
-    class Counters:
+    class Counters: # pylint: disable=C0115
         resettime_utc: int
         solar_generation: float
         to_grid: float

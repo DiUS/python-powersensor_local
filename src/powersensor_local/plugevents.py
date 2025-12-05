@@ -7,17 +7,20 @@ import sys
 from typing import Union
 from pathlib import Path
 
-project_root = str(Path(__file__).parents[ 1])
-if project_root not in sys.path:
-        sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[ 1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.plug_api import PlugApi
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 
 async def print_event_and_message(event, message):
+    """Callback for printing event data."""
     print(event, message)
 
 class PlugEvents(AbstractEventHandler):
+    """Main logic wrapper."""
     def __init__(self):
         self.plug: Union[PlugApi, None] = None
 
@@ -55,6 +58,7 @@ class PlugEvents(AbstractEventHandler):
         await self.wait()
 
 def app():
+    """Application entry point."""
     PlugEvents().run()
 
 if __name__ == "__main__":

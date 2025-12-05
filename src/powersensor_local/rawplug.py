@@ -8,20 +8,24 @@ import sys
 
 from pathlib import Path
 
-project_root = str(Path(__file__).parents[ 1])
-if project_root not in sys.path:
-        sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[ 1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local import PlugListenerTcp,PlugListenerUdp
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 
 async def print_message_ignore_event(_, message):
+    """Callback for printing event data withou the event name."""
     print(message)
 
 async def print_event(event):
+    """Callback for printing an event."""
     print(event)
 
 class RawPlug(AbstractEventHandler):
+    """Main logic wrapper."""
     def __init__(self, protocol=None):
         self.plug: Union[PlugListenerTcp, PlugListenerUdp, None] = None
         if protocol is None:
@@ -62,6 +66,8 @@ class RawPlug(AbstractEventHandler):
         await self.wait()
 
 def app():
+    """Application entry point."""
     RawPlug().run()
+
 if __name__ == "__main__":
     app()

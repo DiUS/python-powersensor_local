@@ -1,3 +1,4 @@
+"""Small helper class for pub/sub functionality with async handlers."""
 from typing import Callable
 
 class AsyncEventEmitter:
@@ -31,5 +32,5 @@ class AsyncEventEmitter:
         for callback in self._listeners[event_name]:
             try:
                 await callback(event_name, *args)
-            except BaseException as e:
+            except BaseException as e: # pylint: disable=W0718
                 await self.emit('exception', e)

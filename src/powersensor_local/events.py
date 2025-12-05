@@ -7,14 +7,16 @@ import typing
 import sys
 from pathlib import Path
 
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.devices import PowersensorDevices
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 
 class EventLoopRunner(AbstractEventHandler):
+    """Main logic wrapper."""
     def __init__(self):
         self.devices: typing.Union[PowersensorDevices, None] = PowersensorDevices()
 
@@ -23,6 +25,7 @@ class EventLoopRunner(AbstractEventHandler):
             await self.devices.stop()
 
     async def on_message(self, obj):
+        """Callback for printing received events."""
         print(obj)
         if obj['event'] == 'device_found':
             self.devices.subscribe(obj['mac'])
@@ -40,6 +43,7 @@ class EventLoopRunner(AbstractEventHandler):
         await self.wait()
 
 def app():
+    """Application entry point."""
     EventLoopRunner().run()
 
 if __name__ == "__main__":

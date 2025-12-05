@@ -1,9 +1,11 @@
+"""Interface abstraction for Powersensor plugs."""
 import sys
 from pathlib import Path
-project_root = str(Path(__file__).parents[1])
-if project_root not in sys.path:
-    sys.path.append(project_root)
+PROJECT_ROOT = str(Path(__file__).parents[1])
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
+# pylint: disable=C0413
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 from powersensor_local.plug_listener_tcp import PlugListenerTcp
 from powersensor_local.plug_listener_udp import PlugListenerUdp
@@ -21,15 +23,25 @@ class PlugApi(AsyncEventEmitter):
     """
 
     def __init__(self, mac, ip, port=49476, proto='udp'):
-        """
-        Instantiates a new PlugApi for the given plug.
+        """Create a :class:`PlugApi` instance for a single plug.
 
-        Args:
-          - mac: The MAC address of the plug (typically found in the "id" field
-            in the mDNS/ZeroConf discovery).
-          - ip: The IP address of the plug.
-          - port: The port number of the API service on the plug.
-          - proto: One of 'udp' or 'tcp'.
+        Parameters
+        ----------
+        mac : str
+            MAC address of the plug (usually found in the ``id`` field of mDNS/ZeroConf discovery).
+        ip : str
+            IP address assigned to the plug.
+        port : int, optional
+            Port number of the plug’s API service. Defaults to ``49476``.
+        proto : {'udp', 'tcp'}, optional
+            Protocol used for communication.  ``'udp'`` selects :class:`PlugListenerUdp`,
+            while ``'tcp'`` selects :class:`PlugListenerTcp`.  Any other value raises a
+            :class:`ValueError`.
+
+        Raises
+        ------
+        ValueError
+            If *proto* is not ``'udp'`` or ``'tcp'``.
         """
         super().__init__()
         self._mac = mac
@@ -87,8 +99,24 @@ class PlugApi(AsyncEventEmitter):
 
     @property
     def ip_address(self):
+        """
+        Return the IP address provided on construction.
+
+        Returns
+        -------
+        str
+            The IP address configured for the listener.
+        """
         return self._listener.ip
 
     @property
     def port(self):
+        """
+        Return the port number provided on construction.
+
+        Returns
+        -------
+        int
+            The TCP/UDP port configured for the listener.
+        """
         return self._listener.port

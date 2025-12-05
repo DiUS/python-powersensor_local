@@ -1,3 +1,4 @@
+"""The legacy alternative to using mDNS discovery."""
 import asyncio
 import json
 import socket
@@ -13,7 +14,7 @@ class LegacyDiscovery(asyncio.DatagramProtocol):
         """
         super().__init__()
         self._dst_addr = broadcast_addr
-        self._found = dict()
+        self._found = {}
 
     async def scan(self, timeout_sec = 2.0):
         """Scans the local network for discoverable devices.
@@ -25,7 +26,7 @@ class LegacyDiscovery(asyncio.DatagramProtocol):
           "id": "aabbccddeeff",
         }
         """
-        self._found = dict()
+        self._found = {}
 
         loop = asyncio.get_running_loop()
         transport, _ = await loop.create_datagram_endpoint(
@@ -45,6 +46,7 @@ class LegacyDiscovery(asyncio.DatagramProtocol):
         return list(self._found.values())
 
     def protocol_factory(self):
+        """UDP protocol factory."""
         return self
 
     def datagram_received(self, data, addr):

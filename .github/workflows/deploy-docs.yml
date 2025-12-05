@@ -2,8 +2,8 @@ name: Deploy Documentation to GitHub Pages
 
 on:
   push:
-    branches: [ "formatting-changes" ] 
-  
+    branches: [ "formatting-changes" ]
+
   workflow_dispatch:
 
 permissions:
@@ -21,27 +21,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-      
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      
+
       - name: Install Hatch
         run: pip install hatch
-      
+
       - name: Install dependencies
         run: |
           pip install -e ".[docs]"
-      
+
       - name: Build documentation
         run: |
-          cd docs 
+          cd docs
           make html
-      
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
-      
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

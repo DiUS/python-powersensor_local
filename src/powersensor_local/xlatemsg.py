@@ -54,18 +54,23 @@ def _make_summation_energy_event(message: dict):
 def _make_average_flow_event(message: dict):
     ev = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
+    # Old firmware not providing averge_flow don't account for meter scaling,
+    # so the reported flow is likely wrong. To avoid displaying incorrect data
+    # we only accept the newer average_new field.
     _pick_list(ev, message, [
+        ('average_flow', 'litres_per_minute', True, 3),
         ('duration', 'duration_s', True, 3),
     ])
-    # report is in cl/min
-    ev['litres_per_minute'] = round(float(message['power'])/100.0, 3)
     return ev
 
 def _make_summation_volume_event(message: dict):
     ev = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
+    # Old firmware not providing summation_volume don't account for meter
+    # scaling, so the reported summation is likely wrong. To avoid displaying
+    # incorrect data we only accept the summation_volume field
     _pick_list(ev, message, [
-        ('summation', 'summation_litres', True, 3),
+        ('summation_volume', 'summation_litres', True, 3),
         ('summation_start', 'summation_resettime_utc', True, 0),
     ])
     return ev

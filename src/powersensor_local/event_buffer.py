@@ -14,7 +14,7 @@ class EventBuffer:
     """
     def __init__(self, keep: int):
         self._keep = keep
-        self._evs = []
+        self._evs: list = []
 
     def find_by_key(self, key: str, value: Any):
         """Return the first event that contains ``key`` with the given ``value``.

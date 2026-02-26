@@ -4,7 +4,6 @@
 Powersensor device. Intended for advanced debugging use only."""
 
 import sys
-from typing import Union
 from pathlib import Path
 
 PROJECT_ROOT = str(Path(__file__).parents[ 1])
@@ -15,21 +14,21 @@ if PROJECT_ROOT not in sys.path:
 from powersensor_local.plug_api import PlugApi
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 
-async def print_event_and_message(event, message):
+async def print_event_and_message(event, message) -> None:
     """Callback for printing event data."""
     print(event, message)
 
 class PlugEvents(AbstractEventHandler):
     """Main logic wrapper."""
-    def __init__(self):
-        self.plug: Union[PlugApi, None] = None
+    def __init__(self) -> None:
+        self.plug: PlugApi|None = None
 
-    async def on_exit(self):
+    async def on_exit(self) -> None:
         if self.plug is not None:
             await self.plug.disconnect()
             self.plug = None
 
-    async def main(self):
+    async def main(self) -> None:
         if len(sys.argv) < 3:
             print(f"Syntax: {sys.argv[0]} <id> <ip> [port]")
             sys.exit(1)
@@ -57,7 +56,7 @@ class PlugEvents(AbstractEventHandler):
         # Keep the event loop running until Ctrl+C is pressed
         await self.wait()
 
-def app():
+def app() -> None:
     """Application entry point."""
     PlugEvents().run()
 

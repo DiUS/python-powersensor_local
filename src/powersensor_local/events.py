@@ -17,20 +17,20 @@ from powersensor_local.abstract_event_handler import AbstractEventHandler
 
 class EventLoopRunner(AbstractEventHandler):
     """Main logic wrapper."""
-    def __init__(self):
-        self.devices: typing.Union[PowersensorDevices, None] = PowersensorDevices()
+    def __init__(self) -> None:
+        self.devices: PowersensorDevices = PowersensorDevices()
 
-    async def on_exit(self):
+    async def on_exit(self) -> None:
         if self.devices is not None:
             await self.devices.stop()
 
-    async def on_message(self, obj):
+    async def on_message(self, obj) -> None:
         """Callback for printing received events."""
         print(obj)
         if obj['event'] == 'device_found':
             self.devices.subscribe(obj['mac'])
 
-    async def main(self):
+    async def main(self) -> None:
         if self.devices is None:
             self.devices = PowersensorDevices()
 
@@ -42,7 +42,7 @@ class EventLoopRunner(AbstractEventHandler):
         # Keep the event loop running until Ctrl+C is pressed
         await self.wait()
 
-def app():
+def app() -> None:
     """Application entry point."""
     EventLoopRunner().run()
 

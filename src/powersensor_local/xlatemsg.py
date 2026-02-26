@@ -7,7 +7,7 @@ _MAC_TS_ROLE = [
 
 
 # pylint: disable=R0913,R0917
-def _pick_item(out: dict, message: dict, key: str, dstkey: str, req: bool, decis: int = None):
+def _pick_item(out: dict, message: dict, key: str, dstkey: str, req: bool, decis: int|None = None):
     val = message.get(key)
     if val is not None:
         if isinstance(val, float) and decis is not None:
@@ -23,7 +23,7 @@ def _pick_list(out: dict, message: dict, items: list):
     return out
 
 def _make_average_power_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     _pick_list(ev, message, [
         ('power', 'watts', True, 0),
@@ -32,7 +32,7 @@ def _make_average_power_event(message: dict):
     return ev
 
 def _make_average_power_components_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     _pick_list(ev, message, [
         ('current', 'apparent_current', True, 3),
@@ -43,7 +43,7 @@ def _make_average_power_components_event(message: dict):
     return ev
 
 def _make_summation_energy_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     _pick_list(ev, message, [
         ('summation', 'summation_joules', True, 0),
@@ -52,7 +52,7 @@ def _make_summation_energy_event(message: dict):
     return ev
 
 def _make_average_flow_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     # Old firmware not providing averge_flow don't account for meter scaling,
     # so the reported flow is likely wrong. To avoid displaying incorrect data
@@ -64,7 +64,7 @@ def _make_average_flow_event(message: dict):
     return ev
 
 def _make_summation_volume_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     # Old firmware not providing summation_volume don't account for meter
     # scaling, so the reported summation is likely wrong. To avoid displaying
@@ -76,7 +76,7 @@ def _make_summation_volume_event(message: dict):
     return ev
 
 def _make_uncalibrated_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     _pick_list(ev, message, [
         ('power', 'value', True, None),
@@ -85,13 +85,13 @@ def _make_uncalibrated_event(message: dict):
     return ev
 
 def _make_battery_level_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     ev['volts'] = round(float(message['batteryMicrovolt'])/1000000.0, 6)
     return ev
 
 def _make_rssi_event(message: dict):
-    ev = {}
+    ev: dict = {}
     _pick_list(ev, message, _MAC_TS_ROLE)
     _pick_list(ev, message, [
         ('duration', 'duration_s', True, 3),
@@ -247,9 +247,9 @@ def translate_raw_message(message: dict, relay_mac: str):
           - "last_rssi": The most recent RSSI value.
 
     """
-    evs = {}
-    typ = message.get('type')
-    dev = message.get('device') # plug/sensor/ble_sensor
+    evs: dict = {}
+    typ = message['type']
+    dev = message['device'] # plug/sensor/ble_sensor
 
     # Primary message type, overloaded like nothing 😅
     if typ == 'instant_power':

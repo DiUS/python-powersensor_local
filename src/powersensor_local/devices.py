@@ -33,18 +33,18 @@ class PowersensorDevices:
         of the local network to discover present devices. The callback is
         of the form
 
-        async def yourcallback(event: dict)
+          async def yourcallback(event: dict) -> None
 
         Known events:
 
-        scan_complete:
+        **scan_complete**
             Indicates the discovery of Powersensor devices has completed.
             Emitted in response to start() and rescan() calls.
             The number of found gateways (plugs) is reported.
 
             { event: "scan_complete", gateway_count: N }
 
-        device_found:
+        **device_found**
             A new device found on the network.
             The order found devices are announced is not fixed.
 
@@ -53,15 +53,13 @@ class PowersensorDevices:
               mac: "...",
             }
 
-        device_lost:
+        **device_lost**
             A device appears to no longer be present on the network.
 
             { event: "device_lost", mac: "..." }
 
-
         Additionally, all events described in xlatemsg.translate_raw_message
         may be issued. The event name is inserted into the field 'event'.
-
 
         The start function returns the number of found gateway plugs.
         Powersensor devices aren't found directly as they are typically not

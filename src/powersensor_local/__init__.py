@@ -22,12 +22,12 @@ Additionally, a convenience abstraction for translating some of the events into
 a household view is available in VirtualHousehold.
 
 Quick overview:
-• PlugApi is the recommended API layer
-• PlugListenerUdp is the UDP lower-level abstraction used by PlugApi
-• PlugListenerTcp is the TCP lower-level abstraction used by PlugApi
-• PowersensorDevices is the legacy main API layer
-• LegacyDiscovery provides access to the legacy discovery mechanism
-• VirtualHousehold can be used to translate events into a household view
+  - PlugApi is the recommended API layer
+  - PlugListenerUdp is the UDP lower-level abstraction used by PlugApi
+  - PlugListenerTcp is the TCP lower-level abstraction used by PlugApi
+  - PowersensorDevices is the legacy main API layer
+  - LegacyDiscovery provides access to the legacy discovery mechanism
+  - VirtualHousehold can be used to translate events into a household view
 
 The 'plugevents' and 'rawplug' modules are helper utilities provided as
 debug aids, which get installed under the names ps-plugevents and ps-rawplug

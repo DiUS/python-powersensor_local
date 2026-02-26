@@ -128,21 +128,24 @@ def translate_raw_message(message: dict, relay_mac: str):
     Translates raw messages from the plug API into stable, documented events.
 
     Args:
-      - message: The raw message (decoded into a dict)
-      - relay_mac: The id (MAC address) of the plug the message was received
+      message: The raw message (decoded into a dict)
+      relay_mac: The id (MAC address) of the plug the message was received
         through. When the message origin is not the plug, the events returned
         from this function will have "via": relay_mac added to denote what
         plug is acting as the relay for them.
 
     Returns:
+
       A dictionary of events, quite possibly empty. The key is the event
       name that the event should be emitted under, with the value being
       the event data itself (a dict).
 
     Possible events returned:
+
       - "average_power": An event denoting the average power seen over a
         short duration, such as 1 or 30 seconds typically. Both plugs and
         powersensors may originate these. The event data comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug, if from a sensor.
@@ -155,6 +158,7 @@ def translate_raw_message(message: dict, relay_mac: str):
         information on the power components feeding into the power measurement.
         To be read in conjunction with the "average_power" message with the
         same starttime_utc value. Comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "starttime_utc": Seconds since the Unix Epoch, in UTC.
@@ -165,6 +169,7 @@ def translate_raw_message(message: dict, relay_mac: str):
 
       - "summation_energy": An event reporting an energy summation value.
         Issued for both plugs and sensors. Comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug, if from a sensor.
@@ -184,6 +189,7 @@ def translate_raw_message(message: dict, relay_mac: str):
       - "average_flow": An event denoting the average flow rate seen over a
         short duration, such as 1 or 30 seconds typically. Only originated by
         water sensors. The event data comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug.
@@ -193,6 +199,7 @@ def translate_raw_message(message: dict, relay_mac: str):
 
       - "summation_volume": An event reporting a volume summation value.
         Issued only for water sensors. Comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug.
@@ -209,33 +216,36 @@ def translate_raw_message(message: dict, relay_mac: str):
         unknown unit, for an average over a short duration, such as 1 or 30
         seconds typically. Issued by powersensors, prior to calibration.
         The event data comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug.
           - "starttime_utc": Seconds since the Unix Epoch, in UTC.
           - "duration_s": The number of seconds the reading is calculated over.
           - "value": The value, in unspecified units. The only valid thing
-          to use this value for is display it relative to other uncalibrated
-          values from the same device. The magnitude of the value is an
-          indication of the strength of the signal seen by the sensor, but
-          the unit is most definitely NOT in Watts. For most purposes, this
-          event can (and should be) ignored. Once the backend has successfully
-          calibrated the sensor against one or more plugs, these events
-          will be replaced by "average_power" events instead.
+            to use this value for is display it relative to other uncalibrated
+            values from the same device. The magnitude of the value is an
+            indication of the strength of the signal seen by the sensor, but
+            the unit is most definitely NOT in Watts. For most purposes, this
+            event can (and should be) ignored. Once the backend has successfully
+            calibrated the sensor against one or more plugs, these events
+            will be replaced by "average_power" events instead.
 
       - "battery_level": An event reporting the battery level of a sensor.
         The event data comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug.
           - "starttime_utc": Seconds since the Unix Epoch, in UTC.
           - "volts": The current battery level, in Volts. Sensors operate
-          on 3.7V nominally, with a fully charged battery at around 4.2V.
-          Precise battery curves vary individually.
+            on 3.7V nominally, with a fully charged battery at around 4.2V.
+            Precise battery curves vary individually.
 
       - "radio_signal_quality": An event reporting radio signal quality for
         a sensor. Note that this is for the long-range radio comms with the
         plug, not for the WiFi signal. The event comprises:
+
           - "mac": The MAC address of the device.
           - "role": The assigned role of the device, if known.
           - "via": The id of the relaying plug.
@@ -245,7 +255,6 @@ def translate_raw_message(message: dict, relay_mac: str):
             during the reporting window. Values below -90 are considered poor
             reception.
           - "last_rssi": The most recent RSSI value.
-
     """
     evs: dict = {}
     typ = message['type']

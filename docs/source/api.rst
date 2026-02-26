@@ -13,5 +13,7 @@ __________
    :toctree: submodules
    :recursive:
 
-    devices
-    listener
+   devices
+   plug_api
+   virtual_household
+   xlatemsg

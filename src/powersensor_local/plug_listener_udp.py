@@ -1,4 +1,4 @@
-"""An interface for accessing the event stream from a Powersensor plug."""
+"""Internal helper for accessing the event stream from a Powersensor plug."""
 import asyncio
 import json
 import socket
@@ -15,18 +15,19 @@ from powersensor_local.async_event_emitter import AsyncEventEmitter
 # pylint: disable=R0902
 # @todo: dream up a base class for PlugListener that TCP/UDP subclass
 class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
-    """An interface class for accessing the event stream from a single plug.
+    """Internal helper for accessing the event stream from a Powersensor plug.
+
     The following events may be emitted:
       - ("connecting")   Whenever a connection attempt is made.
       - ("connected")    When a connection is successful.
       - ("disconnected") When a connection is dropped, be it intentional or not.
       - ("message",{...}) For each event message received from the plug. The
-      plug's JSON message is decoded into a dict which is passed as the second
-      argument to the registered event handler(s).
+        plug's JSON message is decoded into a dict which is passed as the
+        second argument to the registered event handler(s).
       - ("malformed",line) If JSON decoding of a message fails. The raw line
-      is included (as a byte string).
+        is included (as a byte string).
 
-      The event handlers must be async.
+    The event handlers must be async.
     """
 
     def __init__(self, ip, port=49476):

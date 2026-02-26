@@ -112,8 +112,11 @@ def _maybe_make_instant_power_events(out: dict, message: dict, dev: str):
             out['average_power_components'] = \
                 _make_average_power_components_event(message)
     elif unit in ('L', 'l'):
-        out['average_flow'] = _make_average_flow_event(message)
-        out['summation_volume'] = _make_summation_volume_event(message)
+        try:
+            out['average_flow'] = _make_average_flow_event(message)
+            out['summation_volume'] = _make_summation_volume_event(message)
+        except KeyError:
+            pass # Old firmware doesn't provide the necessary fields
     elif unit == 'U':
         out['uncalibrated_average_reading'] = _make_uncalibrated_event(message)
     elif unit == 'I':

@@ -39,3 +39,10 @@ docs = [
 
 [tool.hatch.version]
 path = "src/powersensor_local/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+only-packages = true
+
+[tool.hatch.build.targets.sdist]
+include = ["src/**", "docs/**", "tests/**", "scripts/**"]
+exclude = [ "tests/.coverage" ]

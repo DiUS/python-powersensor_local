@@ -155,7 +155,7 @@ class PowersensorDevices:
         await self._event_cb({
             'event': 'device_found',
             'mac': mac,
-            'device_type:': typ,
+            'device_type': typ,
         })
 
     async def _remove_device(self, mac):

@@ -312,14 +312,20 @@ try:
                 return None
 
             try:
-                mac = info.properties[b'id'].decode('utf-8')
-            except (KeyError, AttributeError) as err:
-                _LOGGER.error(
-                    "Missing 'id' property in zeroconf record for %s: %s", name, err
-                )
+                raw_id = info.properties[b'id']
+            except KeyError:
+                _LOGGER.error("Missing 'id' property in zeroconf record for %s", name)
                 return None
 
-            return mac, addresses[0], info.port
+            if raw_id is None:
+                _LOGGER.error("'id' property in zeroconf record for %s has no value", name)
+                return None
+
+            if info.port is None:
+                _LOGGER.error("No port in zeroconf record for %s", name)
+                return None
+
+            return raw_id.decode('utf-8'), addresses[0], info.port
 
         def add_service(self, zc: Any, type_: str, name: str) -> None:
             result = self._extract(zc, type_, name)

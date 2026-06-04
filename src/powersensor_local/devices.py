@@ -125,10 +125,10 @@ class _PowersensorDevicesBase:
     # Internal event routing
     # ------------------------------------------------------------------
 
-    async def _emit_if_subscribed(self, ev: str, obj: dict) -> None:
+    async def _emit_if_subscribed(self, ev: str, mac: str, obj: dict) -> None:
         if self._event_cb is None:
             return
-        device = self._devices.get(obj.get('mac'))
+        device = self._devices.get(mac)
         if device is not None and device.subscribed:
             obj['event'] = ev
             await self._event_cb(obj)
@@ -150,7 +150,7 @@ class _PowersensorDevicesBase:
                 obj['event'] = ev
                 await self._event_cb(obj)
         else:
-            await self._emit_if_subscribed(ev, obj)
+            await self._emit_if_subscribed(ev, mac, obj)
 
     async def _add_device(self, mac: str, typ: str) -> None:
         if mac in self._devices:

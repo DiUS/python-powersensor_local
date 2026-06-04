@@ -39,12 +39,16 @@ __all__ = [
     'PlugApi',
     '__version__',
     'PlugListenerTcp',
-    'PlugListenerUdp'
+    'PlugListenerUdp',
+    'PowersensorDevices',
+    'PowersensorLegacyDevices',
+    'PowersensorZeroconfDevices',
 ]
-__version__ = "2.1.2"
-from .devices import PowersensorDevices
+__version__ = "2.1.3"
+from .devices import PowersensorDevices, PowersensorLegacyDevices
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi
 from .plug_listener_tcp import PlugListenerTcp
 from .plug_listener_udp import PlugListenerUdp
 from .virtual_household import VirtualHousehold
+from .zeroconf_devices import PowersensorZeroconfDevices

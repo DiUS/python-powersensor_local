@@ -28,14 +28,29 @@ pattern for Home Assistant, which maintains a single shared zeroconf instance.
 
 Thread safety
 -------------
-``_Listener`` is called from the zeroconf background thread.  It maintains its
-own ``_name_to_mac`` cache (populated on add/update, consumed on remove) so
-that ``remove_service`` can resolve the MAC without touching the zeroconf
-record, which may already be gone by the time the callback fires.
+On zeroconf >= 0.32 (including Home Assistant's 0.149.x), ServiceBrowser
+callbacks run inside the asyncio event loop rather than on a background thread.
+On older zeroconf (e.g. 1.0.0, which used a select() thread), they run on a
+background thread.
 
-All HA-facing work crosses the thread boundary via
-``loop.call_soon_threadsafe``.  The ``_Listener`` dict is only ever read and
-written from the zeroconf thread, so no additional locking is needed.
+``_Listener`` is therefore written to be safe in both models:
+
+- ``_extract`` uses ``ServiceInfo.load_from_cache()`` rather than
+  ``Zeroconf.get_service_info()``.  On >= 0.32, calling get_service_info()
+  from inside a ServiceBrowser callback deadlocks — it blocks waiting for a
+  DNS reply that can never arrive because it holds the event loop.
+  load_from_cache() is synchronous, non-blocking, and explicitly threadsafe;
+  the ServiceBrowser guarantees the cache is populated before firing the
+  callback, so the record is always present.
+
+- ``_name_to_mac`` is populated in ``add_service`` / ``update_service`` and
+  consumed in ``remove_service``.  On >= 0.32 all three callbacks run on the
+  same event loop thread, so no locking is needed.  On older versions they run
+  on the same zeroconf background thread, so no locking is needed there either.
+
+- All work that touches PowersensorZeroconfDevices state crosses the thread
+  boundary via ``loop.call_soon_threadsafe``, making it safe regardless of
+  which threading model the installed zeroconf uses.
 """
 from __future__ import annotations
 
@@ -247,17 +262,17 @@ try:
         """Zeroconf ServiceListener that forwards events to PowersensorZeroconfDevices.
 
         Internal implementation detail.  All ServiceListener callbacks arrive on
-        the zeroconf background thread.
+        the zeroconf event loop (>= 0.32) or background thread (< 0.32 / 1.0.0).
 
         Thread safety
         -------------
         ``_name_to_mac`` is populated in ``add_service`` / ``update_service`` and
-        consumed in ``remove_service``, all of which are called from the same
-        zeroconf background thread — no locking required.
+        consumed in ``remove_service``.  In both threading models all three
+        callbacks arrive on the same thread/loop, so no locking is required.
 
         The stored ``_loop`` reference is captured once at construction from the
-        running asyncio event loop, and is used (read-only) from the zeroconf
-        thread to schedule work back onto that loop via ``call_soon_threadsafe``.
+        running asyncio event loop, and is used (read-only) from the callback
+        context to schedule work back onto that loop via ``call_soon_threadsafe``.
         """
 
         def __init__(self, owner: PowersensorZeroconfDevices, loop: asyncio.AbstractEventLoop) -> None:
@@ -266,19 +281,34 @@ try:
             self._name_to_mac: dict[str, str] = {}
 
         def _extract(self, zc: Any, type_: str, name: str) -> tuple[str, str, int] | None:
-            """Return (mac, ip, port) from the zeroconf service record, or None."""
-            try:
-                info = zc.get_service_info(type_, name)
-            except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.error("Error retrieving zeroconf info for %s: %s", name, err)
-                return None
+            """Return (mac, ip, port) from the zeroconf cache, or None.
 
-            if not info:
+            Uses ServiceInfo.load_from_cache() rather than
+            Zeroconf.get_service_info() for two reasons:
+
+            1. On zeroconf >= 0.32 (including HA's 0.149.x), ServiceBrowser
+               callbacks run inside the asyncio event loop.  Calling
+               get_service_info() from there blocks waiting for a DNS reply
+               that can never be processed because the event loop is occupied —
+               it deadlocks, times out after 3 s, and silently returns None,
+               causing the device to be dropped.
+
+            2. load_from_cache() is synchronous, non-blocking, and explicitly
+               documented as threadsafe.  The ServiceBrowser guarantees the
+               cache is populated before firing add_service / update_service,
+               so the record is always present when this method is called.
+            """
+            info = _zc.ServiceInfo(type_, name)
+            if not info.load_from_cache(zc):
+                _LOGGER.warning(
+                    "No cache entry for %s — device will appear on next mDNS announcement",
+                    name,
+                )
                 return None
 
             addresses = info.parsed_addresses()
             if not addresses:
-                _LOGGER.warning("No addresses in zeroconf record for %s", name)
+                _LOGGER.warning("No addresses in zeroconf cache record for %s", name)
                 return None
 
             try:
@@ -293,17 +323,27 @@ try:
 
         def add_service(self, zc: Any, type_: str, name: str) -> None:
             result = self._extract(zc, type_, name)
-            if result:
-                mac, ip, port = result
-                self._name_to_mac[name] = mac
-                self._owner._on_zc_add(mac, ip, port, self._loop)
+            if result is None:
+                _LOGGER.warning(
+                    "add_service: no info available for %s — will retry on next announcement",
+                    name,
+                )
+                return
+            mac, ip, port = result
+            self._name_to_mac[name] = mac
+            self._owner._on_zc_add(mac, ip, port, self._loop)
 
         def update_service(self, zc: Any, type_: str, name: str) -> None:
             result = self._extract(zc, type_, name)
-            if result:
-                mac, ip, port = result
-                self._name_to_mac[name] = mac
-                self._owner._on_zc_update(mac, ip, port, self._loop)
+            if result is None:
+                _LOGGER.warning(
+                    "update_service: no info available for %s — will retry on next announcement",
+                    name,
+                )
+                return
+            mac, ip, port = result
+            self._name_to_mac[name] = mac
+            self._owner._on_zc_update(mac, ip, port, self._loop)
 
         def remove_service(self, zc: Any, type_: str, name: str) -> None:
             mac = self._name_to_mac.pop(name, None)

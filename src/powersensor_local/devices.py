@@ -133,8 +133,13 @@ class _PowersensorDevicesBase:
             obj['event'] = ev
             await self._event_cb(obj)
 
-    async def _reemit(self, ev: str, obj: dict) -> None:
-        mac = obj.get('mac')
+    async def _reemit(self, ev: str, obj: dict[str, str]) -> None:
+        mac: str|None = obj.get('mac')
+        if mac is None:
+            # we don't log anything in this library, but if we did perhaps
+            # _LOGGER.warning("Received event '%s' with no MAC address -- ignoring", ev) might be appropriate
+            # for now...silence
+            return
         device = self._devices.get(mac)
         if device is not None:
             device.mark_active()

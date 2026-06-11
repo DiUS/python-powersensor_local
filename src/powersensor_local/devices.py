@@ -4,6 +4,7 @@ import logging
 import sys
 
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 PROJECT_ROOT = str(Path(__file__).parents[1])
 if PROJECT_ROOT not in sys.path:
@@ -27,6 +28,13 @@ _KNOWN_PLUG_EVENTS = [
     'summation_energy',
     'summation_volume',
 ]
+
+
+class _LogLevel(Enum):
+    DEBUG = 'debug'
+    INFO = 'info'
+    WARNING = 'warning'
+    ERROR = 'error'
 
 
 class _PowersensorDevicesBase:
@@ -93,6 +101,20 @@ class _PowersensorDevicesBase:
         self._timer: '_PowersensorDevicesBase._Timer | None' = None
         self._relay_now_relaying_for = relay_now_relaying_for
         self._logger = logger
+
+    # ------------------------------------------------------------------
+    # Internal logging helper
+    # ------------------------------------------------------------------
+
+    def _maybe_log(self, level: _LogLevel, msg: str, *args) -> None:
+        """Emit a log message if a logger was provided at construction."""
+        if self._logger is None:
+            return
+        match level:
+            case _LogLevel.DEBUG:    self._logger.debug(msg, *args)
+            case _LogLevel.INFO:     self._logger.info(msg, *args)
+            case _LogLevel.WARNING:  self._logger.warning(msg, *args)
+            case _LogLevel.ERROR:    self._logger.error(msg, *args)
 
     # ------------------------------------------------------------------
     # Public subscription API
@@ -173,8 +195,7 @@ class _PowersensorDevicesBase:
     async def _reemit(self, ev: str, obj: dict[str, str]) -> None:
         mac: str|None = obj.get('mac')
         if mac is None:
-            if self._logger:
-                self._logger.warning("Received event '%s' with no MAC address — ignoring", ev)
+            self._maybe_log(_LogLevel.WARNING, "Received event '%s' with no MAC address — ignoring", ev)
             return
         device = self._devices.get(mac)
         if device is not None:
@@ -290,8 +311,7 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
         Returns the number of gateway plugs found.
         """
         if self._timer is not None:
-            if self._logger:
-                self._logger.warning("start() called while already running — ignoring")
+            self._maybe_log(_LogLevel.WARNING, "start() called while already running — ignoring")
             return len(self._plug_apis)
         self._event_cb = async_event_cb
         await self._on_scanned(await self._discovery.scan())

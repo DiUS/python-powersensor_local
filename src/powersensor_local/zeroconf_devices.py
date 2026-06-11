@@ -64,7 +64,7 @@ PROJECT_ROOT = str(Path(__file__).parents[1])
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
-from powersensor_local.devices import _PowersensorDevicesBase
+from powersensor_local.devices import _PowersensorDevicesBase, _LogLevel
 
 _SERVICE_TYPE_UDP = '_powersensor._udp.local.'
 _SERVICE_TYPE_TCP = '_powersensor._tcp.local.'
@@ -154,8 +154,7 @@ try:
             callbacks shortly after the browser starts.
             """
             if self._browser is not None:
-                if self._logger:
-                    self._logger.warning("start() called while already running — ignoring")
+                self._maybe_log(_LogLevel.WARNING, "start() called while already running — ignoring")
                 return
 
             self._event_cb = async_event_cb
@@ -230,22 +229,19 @@ try:
                 mac,
             )
             self._pending_removals[mac] = handle
-            if self._logger:
-                self._logger.debug("Scheduled removal for %s in %.0f s", mac, self._debounce_seconds)
+            self._maybe_log(_LogLevel.DEBUG, "Scheduled removal for %s in %.0f s", mac, self._debounce_seconds)
 
         def _on_debounce_expired(self, mac: str) -> None:
             """Called by the event loop when the debounce timer fires."""
             self._pending_removals.pop(mac, None)
-            if self._logger:
-                self._logger.info("Plug %s still absent after debounce — removing", mac)
+            self._maybe_log(_LogLevel.INFO, "Plug %s still absent after debounce — removing", mac)
             asyncio.get_running_loop().create_task(self._plug_lost(mac))
 
         def _cancel_pending_removal(self, mac: str, source: str) -> None:
             handle = self._pending_removals.pop(mac, None)
             if handle:
                 handle.cancel()
-                if self._logger:
-                    self._logger.debug("Cancelled pending removal for %s (%s)", mac, source)
+                self._maybe_log(_LogLevel.DEBUG, "Cancelled pending removal for %s (%s)", mac, source)
 
         # ------------------------------------------------------------------
         # Called from _Listener (zeroconf thread → event loop via stored loop ref)
@@ -309,34 +305,30 @@ try:
             """
             info = _zc.ServiceInfo(type_, name)
             if not info.load_from_cache(zc):
-                if self._owner._logger:
-                    self._owner._logger.warning(
-                        "No cache entry for %s — device will appear on next mDNS announcement",
-                        name,
-                    )
+                self._owner._maybe_log(
+                    _LogLevel.WARNING,
+                    "No cache entry for %s — device will appear on next mDNS announcement",
+                    name,
+                )
                 return None
 
             addresses = info.parsed_addresses()
             if not addresses:
-                if self._owner._logger:
-                    self._owner._logger.warning("No addresses in zeroconf cache record for %s", name)
+                self._owner._maybe_log(_LogLevel.WARNING, "No addresses in zeroconf cache record for %s", name)
                 return None
 
             try:
                 raw_id = info.properties[b'id']
             except KeyError:
-                if self._owner._logger:
-                    self._owner._logger.error("Missing 'id' property in zeroconf record for %s", name)
+                self._owner._maybe_log(_LogLevel.ERROR, "Missing 'id' property in zeroconf record for %s", name)
                 return None
 
             if raw_id is None:
-                if self._owner._logger:
-                    self._owner._logger.error("'id' property in zeroconf record for %s has no value", name)
+                self._owner._maybe_log(_LogLevel.ERROR, "'id' property in zeroconf record for %s has no value", name)
                 return None
 
             if info.port is None:
-                if self._owner._logger:
-                    self._owner._logger.error("No port in zeroconf record for %s", name)
+                self._owner._maybe_log(_LogLevel.ERROR, "No port in zeroconf record for %s", name)
                 return None
 
             return raw_id.decode('utf-8'), addresses[0], info.port
@@ -344,11 +336,11 @@ try:
         def add_service(self, zc: Any, type_: str, name: str) -> None:
             result = self._extract(zc, type_, name)
             if result is None:
-                if self._owner._logger:
-                    self._owner._logger.warning(
-                        "add_service: no info available for %s — will retry on next announcement",
-                        name,
-                    )
+                self._owner._maybe_log(
+                    _LogLevel.WARNING,
+                    "add_service: no info available for %s — will retry on next announcement",
+                    name,
+                )
                 return
             mac, ip, port = result
             self._name_to_mac[name] = mac
@@ -357,11 +349,11 @@ try:
         def update_service(self, zc: Any, type_: str, name: str) -> None:
             result = self._extract(zc, type_, name)
             if result is None:
-                if self._owner._logger:
-                    self._owner._logger.warning(
-                        "update_service: no info available for %s — will retry on next announcement",
-                        name,
-                    )
+                self._owner._maybe_log(
+                    _LogLevel.WARNING,
+                    "update_service: no info available for %s — will retry on next announcement",
+                    name,
+                )
                 return
             mac, ip, port = result
             self._name_to_mac[name] = mac
@@ -370,10 +362,10 @@ try:
         def remove_service(self, zc: Any, type_: str, name: str) -> None:
             mac = self._name_to_mac.pop(name, None)
             if mac is None:
-                if self._owner._logger:
-                    self._owner._logger.warning(
-                        "remove_service for %s: MAC not in cache — removal ignored", name
-                    )
+                self._owner._maybe_log(
+                    _LogLevel.WARNING,
+                    "remove_service for %s: MAC not in cache — removal ignored", name,
+                )
                 return
             self._owner._on_zc_remove(mac, self._loop)
 

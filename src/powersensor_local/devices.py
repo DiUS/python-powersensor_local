@@ -1,5 +1,6 @@
 """Abstraction interface for unified event stream from Powersensor devices."""
 import asyncio
+import logging
 import sys
 
 from datetime import datetime, timezone
@@ -35,9 +36,40 @@ class _PowersensorDevicesBase:
     callback.  Subclasses are responsible for discovery — they call
     _plug_discovered(mac, ip, port) when a plug appears and
     _plug_lost(mac) when one disappears.
+
+    Known events
+    ------------
+    All subclasses emit the following lifecycle events:
+
+    **device_found**
+        A device has been discovered or re-discovered.
+        ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
+
+    **device_lost**
+        A device has definitively disappeared (plug) or been inactive long
+        enough to expire (sensor).
+        ``{ event: "device_lost", mac: "..." }``
+
+    Additionally, all events from ``xlatemsg.translate_raw_message`` may be
+    issued for subscribed devices, with the event name inserted into the
+    ``event`` field.  Known measurement events include:
+
+    ``average_flow``, ``average_power``, ``average_power_components``,
+    ``battery_level``, ``exception``, ``now_relaying_for``,
+    ``radio_signal_quality``, ``summation_energy``, ``summation_volume``.
+
+    When ``relay_now_relaying_for=True`` the raw ``now_relaying_for`` wire
+    message is forwarded to the callback immediately after the synthesised
+    ``device_found`` for the same sensor MAC.
+
+    Note: ``scan_complete`` is only emitted by PowersensorLegacyDevices.
     """
 
-    def __init__(self, relay_now_relaying_for: bool = False) -> None:
+    def __init__(
+        self,
+        relay_now_relaying_for: bool = False,
+        logger: 'logging.Logger | None' = None,
+    ) -> None:
         """Initialise the base.
 
         Parameters
@@ -50,12 +82,17 @@ class _PowersensorDevicesBase:
             caller's callback unchanged, in addition to any ``device_found``
             synthesis.  Set this to True when the caller wants to inspect relay
             metadata directly (e.g. the HA dispatcher).
+        logger:
+            Optional :class:`logging.Logger` instance.  When provided, the
+            library emits debug/warning/error messages via this logger.  When
+            None (default) the library is completely silent.
         """
         self._event_cb = None
         self._devices: dict[str, '_PowersensorDevicesBase._Device'] = {}
         self._plug_apis: dict[str, PlugApi] = {}
         self._timer: '_PowersensorDevicesBase._Timer | None' = None
         self._relay_now_relaying_for = relay_now_relaying_for
+        self._logger = logger
 
     # ------------------------------------------------------------------
     # Public subscription API
@@ -105,8 +142,8 @@ class _PowersensorDevicesBase:
             if api.ip_address == ip and api.port == port:
                 return  # no change
             # Address changed — disconnect stale connection and reconnect.
-            await api.disconnect()
-            self._plug_apis.pop(mac)
+            await self._plug_apis.pop(mac).disconnect()
+            await self._remove_device(mac)
 
         await self._add_device(mac, 'plug')
         api = PlugApi(mac, ip, port)
@@ -136,9 +173,8 @@ class _PowersensorDevicesBase:
     async def _reemit(self, ev: str, obj: dict[str, str]) -> None:
         mac: str|None = obj.get('mac')
         if mac is None:
-            # we don't log anything in this library, but if we did perhaps
-            # _LOGGER.warning("Received event '%s' with no MAC address -- ignoring", ev) might be appropriate
-            # for now...silence
+            if self._logger:
+                self._logger.warning("Received event '%s' with no MAC address — ignoring", ev)
             return
         device = self._devices.get(mac)
         if device is not None:
@@ -230,9 +266,10 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
         self,
         bcast_addr: str = '<broadcast>',
         relay_now_relaying_for: bool = False,
+        logger: 'logging.Logger | None' = None,
     ) -> None:
         """Create a fresh instance, without scanning for devices."""
-        super().__init__(relay_now_relaying_for=relay_now_relaying_for)
+        super().__init__(relay_now_relaying_for=relay_now_relaying_for, logger=logger)
         self._discovery = LegacyDiscovery(bcast_addr)
 
     async def start(self, async_event_cb) -> int:
@@ -242,25 +279,20 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
 
             async def yourcallback(event: dict) -> None
 
-        Known lifecycle events emitted:
+        See _PowersensorDevicesBase for the full list of known events.
+
+        Additionally emits:
 
         **scan_complete**
             Indicates discovery has completed.
             ``{ event: "scan_complete", gateway_count: N }``
 
-        **device_found**
-            A new device found on the network.
-            ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
-
-        **device_lost**
-            A device appears to no longer be present.
-            ``{ event: "device_lost", mac: "..." }``
-
-        Additionally all events from xlatemsg.translate_raw_message may be
-        issued, with the event name inserted into the ``event`` field.
-
         Returns the number of gateway plugs found.
         """
+        if self._timer is not None:
+            if self._logger:
+                self._logger.warning("start() called while already running — ignoring")
+            return len(self._plug_apis)
         self._event_cb = async_event_cb
         await self._on_scanned(await self._discovery.scan())
         self._start_expiry_timer()

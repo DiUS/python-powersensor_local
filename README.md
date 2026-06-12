@@ -18,8 +18,8 @@ relies on the PlugApi as well.
 
 There are also some small utilities included,`ps-plugevents` and `ps-rawplug`
 showcasing the use of the first interface approach, and `ps-events` the latter.
-.
-The `ps-events` is effectively a consumer the PowersensorDevices event
+
+The `ps-events` is effectively a consumer of the PowersensorDevices event
 stream and dumps all events to standard out. Similary, `ps-plugevents` shows
 the event stream from a single plug (plus whatever it might be relaying for),
 and `ps-rawplug` shows the raw event stream from the plug. Note that the format

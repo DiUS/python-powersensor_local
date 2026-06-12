@@ -44,7 +44,7 @@ __all__ = [
     'PowersensorLegacyDevices',
     'PowersensorZeroconfDevices',
 ]
-__version__ = "2.1.3"
+__version__ = "2.2.0"
 from .devices import PowersensorDevices, PowersensorLegacyDevices
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi

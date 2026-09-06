@@ -1,17 +1,33 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-
   workflow_dispatch:
+    inputs:
+      publish-destination:
+        description: 'Publish destination (only main branch can be published to PyPi)'
+        required: true
+        default: "test.pypi"
+        type: choice
+        options:
+          - pypi
+          - test.pypi
 
 permissions:
   contents: read
 
 jobs:
+  publish-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if branch is main
+        if: |
+          (inputs.publish-destination == 'pypi' && github.ref != 'refs/heads/main')
+        run: |
+          echo "Only main branch can be published to PyPi."
+          exit 1
+
   build:
+    needs: [publish-check]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -37,8 +53,8 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: build
+    if: inputs.publish-destination == 'pypi'
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-rc')
     environment: pypi
     permissions:
       id-token: write
@@ -52,11 +68,35 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  tag:
+    name: Create git tag
+    needs: [publish-pypi]
+    if: inputs.publish-destination == 'pypi'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=^__version__ = ")[^"]+' src/powersensor_local/__init__.py)
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
   publish-testpypi:
     name: Publish to TestPyPI
     needs: build
+    if: inputs.publish-destination == 'test.pypi'
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-rc')
     environment: testpypi
     permissions:
       id-token: write

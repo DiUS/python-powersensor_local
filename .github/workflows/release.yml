@@ -4,13 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       publish-destination:
-        description: 'Publish destination (only main branch can be published to PyPi)'
+        description: 'Publish destination (main branch only)'
         required: true
         default: "test.pypi"
         type: choice
         options:
           - pypi
           - test.pypi
+      pypi-tag:
+        description: 'Git tag to release to PyPI, e.g. v2.2.1 (required when destination is pypi; ignored for test.pypi)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -19,12 +23,31 @@ jobs:
   publish-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check if branch is main
-        if: |
-          (inputs.publish-destination == 'pypi' && github.ref != 'refs/heads/main')
+      - name: Check preconditions
         run: |
-          echo "Only main branch can be published to PyPi."
-          exit 1
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "This workflow can only be triggered from the main branch."
+            exit 1
+          fi
+          if [ "${{ inputs.publish-destination }}" = "pypi" ] && [ -z "${{ inputs.pypi-tag }}" ]; then
+            echo "Please provide the git tag to release to PyPI (e.g. v2.2.1)."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        if: inputs.publish-destination == 'pypi'
+        uses: actions/checkout@v5
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: Validate PyPI tag
+        if: inputs.publish-destination == 'pypi'
+        run: |
+          if ! git rev-parse -q --verify "refs/tags/${{ inputs.pypi-tag }}" >/dev/null; then
+            echo "::error::Tag '${{ inputs.pypi-tag }}' was not found in this repository. Check the tag name (e.g. v2.2.1) and try again."
+            exit 1
+          fi
 
   build:
     needs: [publish-check]
@@ -32,6 +55,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.publish-destination == 'pypi' && inputs.pypi-tag || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -68,30 +93,6 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  tag:
-    name: Create git tag
-    needs: [publish-pypi]
-    if: inputs.publish-destination == 'pypi'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Determine version
-        id: version
-        run: |
-          VERSION=$(grep -oP '(?<=^__version__ = ")[^"]+' src/powersensor_local/__init__.py)
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
-
   publish-testpypi:
     name: Publish to TestPyPI
     needs: build
@@ -111,3 +112,27 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+
+  tag:
+    name: Create git tag
+    needs: [publish-testpypi]
+    if: inputs.publish-destination == 'test.pypi'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=^__version__ = ")[^"]+' src/powersensor_local/__init__.py)
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"

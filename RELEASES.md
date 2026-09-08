@@ -85,7 +85,7 @@ from the `main` branch.
   version corresponds to a real, reviewed commit on the trunk branch,
   never an untested feature branch.
 - **`rc*` suffix**: using a
-  [PEP 440](https://peps.python.org/pep-0440/#pre-releases) pre-release
+  [PyPA pre-release](https://packaging.python.org/en/latest/specifications/version-specifiers/#pre-releases)
   suffix means `pip install powersensor-local` never resolves to a
   release candidate by accident — installers only pick up an `rc`
   version if you explicitly ask for it (`pip install --pre` or an exact

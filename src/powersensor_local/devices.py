@@ -51,6 +51,9 @@ class _PowersensorDevicesBase:
 
     **device_found**
         A device has been discovered or re-discovered.
+        Note that due to device hardware limitations, role information is NOT
+        reliably available at this time, and therefore not included in this
+        message.
         ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
 
     **device_lost**
@@ -71,6 +74,9 @@ class _PowersensorDevicesBase:
     ``device_found`` for the same sensor MAC.
 
     Note: ``scan_complete`` is only emitted by PowersensorLegacyDevices.
+
+    The typical event cadence is 30 seconds, but may be as frequent as every
+    second, or less frequent in case of packet loss.
     """
 
     def __init__(
@@ -121,7 +127,13 @@ class _PowersensorDevicesBase:
     # ------------------------------------------------------------------
 
     def subscribe(self, mac: str) -> None:
-        """Subscribe to events from the device with the given MAC address."""
+        """Subscribe to events from the device with the given MAC address.
+
+        Subscriptions are automatically removed if a device disappears,
+        ensuring no accumulating resource leakage. Use the `device_found`
+        message to resubscribe if a subscription is still desired when the
+        device returns, if it returns.
+        """
         device = self._devices.get(mac)
         if device:
             device.subscribed = True

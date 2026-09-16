@@ -150,6 +150,17 @@ class VirtualHousehold(AsyncEventEmitter):
           processing, but until such a time may generate incorrect values
           for home usage. Similarly, if this is set to True but no solar
           exists, no events may be generated.
+
+          It is expected that a user of this library will persist this flag
+          and restore it upon reinitialisation. Powersensor kits may or may
+          not include a solar sensor, but once an installation has been
+          observed to have a solar sensor this is expected to stay so.
+          In particular, this is to guard against the (somewhat common)
+          scenario where a solar sensor runs out of battery and stops sending
+          data. Without having persisted the with_solar flag, the system
+          would be generating incorrect data until such a time the solar
+          sensor is recharged. It is vastly preferable to have the system
+          show no data than show incorrect data.
         """
         super().__init__()
         self._expect_solar = with_solar

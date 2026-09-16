@@ -136,6 +136,9 @@ def translate_raw_message(message: dict, relay_mac: str):
         through. When the message origin is not the plug, the events returned
         from this function will have "via": relay_mac added to denote what
         plug is acting as the relay for them.
+        Note that the relaying plug for a sensor can change at any point
+        without warning, and the topology is not stable. The relay_mac is
+        intended as a diagnostic aid only.
 
     Returns:
 
@@ -243,7 +246,15 @@ def translate_raw_message(message: dict, relay_mac: str):
           - "starttime_utc": Seconds since the Unix Epoch, in UTC.
           - "volts": The current battery level, in Volts. Sensors operate
             on 3.7V nominally, with a fully charged battery at around 4.2V.
-            Precise battery curves vary individually.
+            Precise battery curves vary individually. It is intentional that
+            we do not attempt to map these to a percentage value here, as
+            between individual differences and environmental conditions they
+            are bound to be inaccurate. Short of characterising each battery
+            in its environment, any such mapping will be inaccurate. It can
+            be argued that users wishing a simple percentage display are best
+            off using a simple linear extrapolation across the middle part of
+            the curve, e.g. 3.3V and 4.15V. It's not entirely accurate, but
+            it's also not useless.
 
       - "radio_signal_quality": An event reporting radio signal quality for
         a sensor. Note that this is for the long-range radio comms with the

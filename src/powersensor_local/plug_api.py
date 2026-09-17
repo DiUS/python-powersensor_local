@@ -1,15 +1,10 @@
 """Interface abstraction for Powersensor plugs."""
 import sys
-from pathlib import Path
-PROJECT_ROOT = str(Path(__file__).parents[1])
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
 
-# pylint: disable=C0413
-from powersensor_local.async_event_emitter import AsyncEventEmitter
-from powersensor_local.plug_listener_tcp import PlugListenerTcp
-from powersensor_local.plug_listener_udp import PlugListenerUdp
-from powersensor_local.xlatemsg import translate_raw_message
+from .async_event_emitter import AsyncEventEmitter
+from .plug_listener_tcp import PlugListenerTcp
+from .plug_listener_udp import PlugListenerUdp
+from .xlatemsg import translate_raw_message
 
 class PlugApi(AsyncEventEmitter):
     """

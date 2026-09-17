@@ -57,14 +57,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = str(Path(__file__).parents[1])
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-from powersensor_local.devices import _PowersensorDevicesBase, _LogLevel
+from .devices import _PowersensorDevicesBase, _LogLevel
 
 _SERVICE_TYPE_UDP = '_powersensor._udp.local.'
 _SERVICE_TYPE_TCP = '_powersensor._tcp.local.'

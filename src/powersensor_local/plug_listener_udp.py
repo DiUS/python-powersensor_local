@@ -4,12 +4,6 @@ import json
 import socket
 import sys
 
-from pathlib import Path
-PROJECT_ROOT = str(Path(__file__).parents[1])
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-# pylint: disable=C0413
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
 # pylint: disable=R0902

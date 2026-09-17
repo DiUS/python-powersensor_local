@@ -5,13 +5,7 @@ Powersensor devices. Intended for debugging use only. Please use the proper
 interface in devices.py rather than parsing the output from this script."""
 import typing
 import sys
-from pathlib import Path
 
-PROJECT_ROOT = str(Path(__file__).parents[1])
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-# pylint: disable=C0413
 from powersensor_local.devices import PowersensorDevices
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 

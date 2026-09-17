@@ -11,7 +11,7 @@ extra=
 [ -z "$@" ] && extra="--cov-fail-under=100"
 
 echo "Linting tests..."
-mypy --ignore-missing-imports "${testsdir}"
+mypy "${testsdir}"
 
 pytest \
   --cov=powersensor_local.xlatemsg \

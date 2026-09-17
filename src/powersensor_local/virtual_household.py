@@ -1,17 +1,11 @@
 """Abstraction for producing a household view."""
 
 import sys
-from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
-PROJECT_ROOT = str(Path(__file__).parents[1])
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
-
-# pylint: disable=C0413
-from powersensor_local.async_event_emitter import AsyncEventEmitter
-from powersensor_local.event_buffer import EventBuffer
+from .async_event_emitter import AsyncEventEmitter
+from .event_buffer import EventBuffer
 
 KEY_DUR_S = 'duration_s'
 KEY_RESET = 'summation_resettime_utc'

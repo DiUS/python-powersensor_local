@@ -5,14 +5,9 @@ import sys
 
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
-PROJECT_ROOT = str(Path(__file__).parents[1])
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
 
-# pylint: disable=C0413
-from powersensor_local.legacy_discovery import LegacyDiscovery
-from powersensor_local.plug_api import PlugApi
+from .legacy_discovery import LegacyDiscovery
+from .plug_api import PlugApi
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60

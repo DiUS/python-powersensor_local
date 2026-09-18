@@ -10,6 +10,9 @@ export PYTEST_COVERAGE_DATA_FILE="${testsdir}/.coverage"
 extra=
 [ -z "$@" ] && extra="--cov-fail-under=100"
 
+echo "Linting src..."
+python3 -m mypy --show-error-codes --show-column-numbers "${rootdir}/src"
+
 echo "Linting tests..."
 mypy "${testsdir}"
 

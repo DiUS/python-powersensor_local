@@ -6,6 +6,7 @@ network-local Powersensor device. Intended for advanced debugging use only."""
 import sys
 
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = str(Path(__file__).parents[ 1])
 if PROJECT_ROOT not in sys.path:
@@ -14,12 +15,13 @@ if PROJECT_ROOT not in sys.path:
 # pylint: disable=C0413
 from powersensor_local import PlugListenerTcp,PlugListenerUdp
 from powersensor_local.abstract_event_handler import AbstractEventHandler
+from powersensor_local.xlatemsg import Event
 
-async def print_message_ignore_event(_, message) -> None:
+async def print_message_ignore_event(_: str, event: Event) -> None:
     """Callback for printing event data withou the event name."""
-    print(message)
+    print(event)
 
-async def print_event(event) -> None:
+async def print_event(event: Event) -> None:
     """Callback for printing an event."""
     print(event)
 
@@ -39,7 +41,7 @@ class RawPlug(AbstractEventHandler):
 
     async def main(self) -> None:
         if len(sys.argv) < 2:
-            print(f"Syntax: {sys.argv[0]} <ip> [port]")
+            print(f"Syntax: {sys.argv[0]} <ip> [port [udp|tcp]]")
             sys.exit(1)
 
         # Signal handler for Ctrl+C
@@ -47,10 +49,13 @@ class RawPlug(AbstractEventHandler):
         if len(sys.argv) >= 4:
             self._protocol = sys.argv[3]
         self.plug = None
+        args: dict[str,Any] = { "ip": sys.argv[1] }
+        if len(sys.argv) > 2:
+          args["port"] = int(sys.argv[2])
         if self._protocol == 'udp':
-            self.plug = PlugListenerUdp(sys.argv[1], *sys.argv[2:3])
+            self.plug = PlugListenerUdp(**args)
         elif self._protocol == 'tcp':
-            self.plug = PlugListenerTcp(sys.argv[1], *sys.argv[2:3])
+            self.plug = PlugListenerTcp(**args)
         else:
             print('Unsupported protocol:', self._protocol)
             sys.exit(1)

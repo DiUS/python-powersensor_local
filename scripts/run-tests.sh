@@ -11,13 +11,14 @@ extra=
 [ -z "$@" ] && extra="--cov-fail-under=100"
 
 echo "Linting src..."
-python3 -m mypy --show-error-codes --show-column-numbers "${rootdir}/src"
+python3 -m mypy --strict --show-error-codes --show-column-numbers "${rootdir}/src"
 
 echo "Linting tests..."
-mypy "${testsdir}"
+python3 -m mypy --strict "${testsdir}"
 
 pytest \
   --cov=powersensor_local.xlatemsg \
+  --cov=powersensor_local.async_event_emitter \
   --cov-report term-missing \
   --cov-config="${testsdir}/.coveragerc" \
   --cache-clear \

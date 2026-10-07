@@ -33,6 +33,10 @@ The 'plugevents' and 'rawplug' modules are helper utilities provided as
 debug aids, which get installed under the names ps-plugevents and ps-rawplug
 respectively. There is also the legacy 'events' debug aid which get installed
 nder the names ps-events, and offers up the events from PowersensorDevices.
+Similarly, 'zc_events' offers up events from PowersensorZeroconfDevices,
+installed as 'ps-zcevents', again, for debug use only.
+
+Type hints for emitted data are available in Event/Events/Message.
 """
 __all__ = [
     'VirtualHousehold',
@@ -43,6 +47,9 @@ __all__ = [
     'PowersensorDevices',
     'PowersensorLegacyDevices',
     'PowersensorZeroconfDevices',
+    'Event',
+    'Events',
+    'Message',
 ]
 __version__ = "2.3.0"
 from .devices import PowersensorDevices, PowersensorLegacyDevices
@@ -52,3 +59,4 @@ from .plug_listener_tcp import PlugListenerTcp
 from .plug_listener_udp import PlugListenerUdp
 from .virtual_household import VirtualHousehold
 from .zeroconf_devices import PowersensorZeroconfDevices
+from .xlatemsg import Event, Events, Message

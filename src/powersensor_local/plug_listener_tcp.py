@@ -3,6 +3,8 @@ import asyncio
 import json
 import sys
 
+from asyncio import StreamReader, StreamWriter
+
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
 class PlugListenerTcp(AsyncEventEmitter):
@@ -21,7 +23,7 @@ class PlugListenerTcp(AsyncEventEmitter):
     The event handlers must be async.
     """
 
-    def __init__(self, ip, port=49476):
+    def __init__(self, ip: str, port: int = 49476):
         """
         Create a :class:`PlugListenerTcp` bound to the given IP address.
 
@@ -33,13 +35,13 @@ class PlugListenerTcp(AsyncEventEmitter):
             TCP port used by the plug (default ``49476``).
         """
         super().__init__()
-        self._ip = ip
-        self._port = port
-        self._task = None
-        self._connection = None
-        self._disconnecting = False
+        self._ip: str = ip
+        self._port: int = port
+        self._task: asyncio.Task[None] | None = None
+        self._connection: tuple[StreamReader, StreamWriter] | None = None
+        self._disconnecting: bool = False
 
-    def connect(self):
+    def connect(self) -> None:
         """Initiates the connection to the plug. The object will automatically
         retry as necessary if/when it can't connect to the plug, until such
         a time disconnect() is called."""
@@ -48,7 +50,7 @@ class PlugListenerTcp(AsyncEventEmitter):
         self._disconnecting = False
         self._task = asyncio.create_task(self._do_connection())
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Goes through the disconnection process towards a plug. No further
         automatic reconnects will take place, until connect() is called."""
         if self._task is None:
@@ -62,7 +64,7 @@ class PlugListenerTcp(AsyncEventEmitter):
             await self._task
             self._task = None
 
-    async def _close_connection(self):
+    async def _close_connection(self) -> None:
         if self._connection is not None:
             (_, writer) = self._connection
             self._connection = None
@@ -72,7 +74,7 @@ class PlugListenerTcp(AsyncEventEmitter):
 
             await self.emit('disconnected')
 
-    async def _do_connection(self, backoff = 0):
+    async def _do_connection(self, backoff: int = 0) -> None:
         if self._disconnecting:
             return None
         if backoff < 9:
@@ -98,7 +100,7 @@ class PlugListenerTcp(AsyncEventEmitter):
             await asyncio.sleep(min(5 * 60, 2**backoff * 1))
             return await self._do_connection(backoff)
 
-    async def _process_line(self, reader, writer):
+    async def _process_line(self, reader: StreamReader, writer: StreamWriter) -> None:
         data = await reader.readline()
         if data == b'':
             raise ConnectionResetError
@@ -117,16 +119,16 @@ class PlugListenerTcp(AsyncEventEmitter):
                 await self.emit('malformed', data)
 
     @staticmethod
-    async def _send_subscribe(writer):
+    async def _send_subscribe(writer: StreamWriter) -> None:
         writer.write(b'subscribe(60)\n')
         await writer.drain()
 
     @property
-    def port(self):
+    def port(self) -> int:
         """Return the TCP port this listener is bound to."""
         return self._port
 
     @property
-    def ip(self):
+    def ip(self) -> str:
         """Return the IP address this listener is bound to."""
         return self._ip

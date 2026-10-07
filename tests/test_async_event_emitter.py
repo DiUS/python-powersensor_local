@@ -3,11 +3,11 @@ from powersensor_local.async_event_emitter import AsyncEventEmitter
 from unittest.mock import AsyncMock, MagicMock
 
 @pytest.fixture
-def emitter():
+def emitter() -> AsyncEventEmitter:
   return AsyncEventEmitter()
 
 @pytest.mark.asyncio
-async def test_basics(emitter):
+async def test_basics(emitter: AsyncEventEmitter) -> None:
   mock = AsyncMock()
   # Ensure it calls it
   emitter.subscribe('test', mock)
@@ -23,7 +23,14 @@ async def test_basics(emitter):
 
 
 @pytest.mark.asyncio
-async def test_multiple_listeners(emitter):
+async def test_empty_cov(emitter: AsyncEventEmitter) -> None:
+  mock = AsyncMock()
+  emitter.unsubscribe('test', mock)
+  await emitter.emit('test')
+
+
+@pytest.mark.asyncio
+async def test_multiple_listeners(emitter: AsyncEventEmitter) -> None:
   mock1 = AsyncMock()
   mock2 = AsyncMock()
   emitter.subscribe('x', mock1)
@@ -34,7 +41,7 @@ async def test_multiple_listeners(emitter):
 
 
 @pytest.mark.asyncio
-async def test_different_events(emitter):
+async def test_different_events(emitter: AsyncEventEmitter) -> None:
   mock1 = AsyncMock()
   mock2 = AsyncMock()
   emitter.subscribe('x', mock1)
@@ -48,7 +55,7 @@ async def test_different_events(emitter):
 
 
 @pytest.mark.asyncio
-async def test_argument_passing(emitter):
+async def test_argument_passing(emitter: AsyncEventEmitter) -> None:
   mock = AsyncMock()
   emitter.subscribe('test', mock)
   await emitter.emit('test', 1, 'two', 3.01)
@@ -56,7 +63,7 @@ async def test_argument_passing(emitter):
 
 
 @pytest.mark.asyncio
-async def test_exception_unhandled():
+async def test_exception_unhandled() -> None:
   logger = MagicMock()
   emitter = AsyncEventEmitter(logger)
   mock = AsyncMock()
@@ -68,7 +75,7 @@ async def test_exception_unhandled():
 
 
 @pytest.mark.asyncio
-async def test_exception_handler(emitter):
+async def test_exception_handler(emitter: AsyncEventEmitter) -> None:
   mock = AsyncMock()
   emitter.subscribe('e', mock)
   e = KeyError('oops')
@@ -81,7 +88,7 @@ async def test_exception_handler(emitter):
 
 
 @pytest.mark.asyncio
-async def test_exception_handler_exception():
+async def test_exception_handler_exception() -> None:
   logger = MagicMock()
   emitter = AsyncEventEmitter(logger)
   mock = AsyncMock()
@@ -97,7 +104,7 @@ async def test_exception_handler_exception():
 
 
 @pytest.mark.asyncio
-async def test_multiple_exception_handlers():
+async def test_multiple_exception_handlers() -> None:
   logger = MagicMock()
   emitter = AsyncEventEmitter(logger)
   trigger = AsyncMock()

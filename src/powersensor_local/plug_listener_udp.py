@@ -4,6 +4,9 @@ import json
 import socket
 import sys
 
+from asyncio import TimerHandle
+from typing import Any, Coroutine
+
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
 # pylint: disable=R0902
@@ -24,7 +27,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     The event handlers must be async.
     """
 
-    def __init__(self, ip, port=49476):
+    def __init__(self, ip: str, port: int = 49476):
         """
         Create a :class:`PlugListenerUdp` bound to the given IP address.
 
@@ -36,32 +39,33 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
             UDP port used by the plug (default ``49476``).
         """
         super().__init__()
-        self._ip = ip
-        self._port = port
-        self._backoff = 0               # exponential backoff
-        self._transport = None          # UDP transport/socket
-        self._reconnect = None          # reconnect timer
-        self._inactive = None           # inactivity timer
-        self._disconnecting = False     # disconnecting flag
-        self._was_connected = False     # 'disconnected' event armed?
+        self._ip: str  = ip
+        self._port: int = port
+        self._backoff: int = 0               # exponential backoff
+        self._transport: Any = None          # UDP transport/socket
+        self._reconnect: TimerHandle | None = None          # reconnect timer
+        self._inactive: TimerHandle | None = None           # inactivity timer
+        self._disconnecting: bool = False     # disconnecting flag
+        self._was_connected: bool = False     # 'disconnected' event armed?
+        self._tasks: set[asyncio.Task[None]] = set()
 
-    def connect(self):
+    def connect(self) -> None:
         """Initiates the connection to the plug. The object will automatically
         retry as necessary if/when it can't connect to the plug, until such
         a time disconnect() is called."""
         self._disconnecting = False
         self._backoff = 0
         if self._transport is None:
-            asyncio.create_task(self._do_connection())
+            self._task(self._do_connection())
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Goes through the disconnection process towards a plug. No further
         automatic reconnects will take place, until connect() is called."""
         self._disconnecting = True
 
         await self._close_connection()
 
-    async def _close_connection(self, unsub = True):
+    async def _close_connection(self, unsub: bool = True) -> None:
         if self._reconnect is not None:
             self._reconnect.cancel()
             self._reconnect = None
@@ -81,13 +85,18 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         self._was_connected = False
 
         if not self._disconnecting:
-            await self._do_connection()
+            self._retry_later()
 
-    def _retry(self):
+    def _retry(self) -> None:
         self._reconnect = None
-        asyncio.create_task(self._do_connection())
+        self._task(self._do_connection())
 
-    async def _do_connection(self):
+    def _retry_later(self) -> None:
+        loop = asyncio.get_running_loop()
+        self._reconnect = loop.call_later(
+            min(5*60, 2**self._backoff + 2), self._retry)
+
+    async def _do_connection(self) -> None:
         if self._disconnecting:
             return
         if self._backoff < 9:
@@ -98,32 +107,37 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
             self.protocol_factory,
             family = socket.AF_INET,
             remote_addr = (self._ip, self._port))
-        self._reconnect = loop.call_later(
-            min(5*60, 2**self._backoff + 2), self._retry) # noqa
+        self._retry_later()
 
-    def _send_subscribe(self):
+    def _send_subscribe(self) -> None:
         if self._transport is not None:
             self._transport.sendto(b'subscribe(60)\n')
 
-    def _on_inactivity(self):
-        asyncio.create_task(self._close_connection())
+    def _on_inactivity(self) -> None:
+        self._task(self._close_connection())
+
+    # Task tracking
+    def _task(self, coro: Coroutine[Any,Any, None]) -> None:
+      task = asyncio.create_task(coro)
+      self._tasks.add(task)
+      task.add_done_callback(self._tasks.discard)
 
     # DatagramProtocol support below
 
-    def protocol_factory(self):
+    def protocol_factory(self) -> asyncio.DatagramProtocol:
         """UDP protocol factory for self."""
         return self
 
-    def connection_made(self, transport):
+    def connection_made(self, transport) -> None: # type: ignore
         self._transport = transport
         self._send_subscribe()
 
-    def datagram_received(self, data, addr):
+    def datagram_received(self, data, addr) -> None: # type: ignore
         if self._reconnect is not None:
             self._reconnect.cancel()
             self._reconnect = None
             self._backoff = 0
-            asyncio.create_task(self.emit('connected'))
+            self._task(self.emit('connected'))
 
         if not self._was_connected:
             self._was_connected = True
@@ -131,7 +145,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         if self._inactive is not None:
             self._inactive.cancel()
         loop = asyncio.get_running_loop()
-        self._inactive = loop.call_later(60, self._on_inactivity) # noqa
+        self._inactive = loop.call_later(60, self._on_inactivity)
 
         lines = data.decode('utf-8').splitlines()
         for line in lines:
@@ -144,23 +158,23 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
                 elif typ == 'discovery':
                     pass
                 else:
-                    asyncio.create_task(self.emit('message', message))
+                    self._task(self.emit('message', message))
             except json.decoder.JSONDecodeError:
-                asyncio.create_task(self.emit('malformed', data))
+                self._task(self.emit('malformed', data))
 
-    def error_received(self, exc):
-        asyncio.create_task(self._close_connection(False))
+    def error_received(self, exc: Exception | None) -> None:
+        self._task(self._close_connection(False))
 
-    def connection_lost(self, exc):
+    def connection_lost(self, exc: Exception | None) -> None:
         if self._transport is not None:
-            asyncio.create_task(self._close_connection(False))
+            self._task(self._close_connection(False))
 
     @property
-    def port(self):
+    def port(self) -> int:
         """Return the TCP port this listener is bound to."""
         return self._port
 
     @property
-    def ip(self):
+    def ip(self) -> str:
         """Return the IP address this listener is bound to."""
         return self._ip

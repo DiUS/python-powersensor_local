@@ -13,8 +13,9 @@ if PROJECT_ROOT not in sys.path:
 # pylint: disable=C0413
 from powersensor_local.plug_api import PlugApi
 from powersensor_local.abstract_event_handler import AbstractEventHandler
+from powersensor_local.xlatemsg import Message
 
-async def print_event_and_message(event, message) -> None:
+async def print_event_and_message(event: str, message: Message) -> None:
     """Callback for printing event data."""
     print(event, message)
 
@@ -36,7 +37,7 @@ class PlugEvents(AbstractEventHandler):
         # Signal handler for Ctrl+C
         self.register_sigint_handler()
 
-        plug = PlugApi(sys.argv[1], sys.argv[2], *sys.argv[3:3])
+        plug = PlugApi(sys.argv[1], sys.argv[2], int(*sys.argv[3:3]))
         known_evs = [
             'exception',
             'average_flow',

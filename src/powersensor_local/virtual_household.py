@@ -6,6 +6,7 @@ from typing import Optional
 
 from .async_event_emitter import AsyncEventEmitter
 from .event_buffer import EventBuffer
+from .xlatemsg import Event
 
 KEY_DUR_S = 'duration_s'
 KEY_RESET = 'summation_resettime_utc'
@@ -35,14 +36,14 @@ class SummationDeltas: # pylint: disable=C0115
     from_grid: float
     home_use: float
 
-def same_duration(ev1: dict, ev2: dict):
+def same_duration(ev1: Event, ev2: Event) -> bool:
     """Close-enough matching of duration_s in events."""
     dur = KEY_DUR_S
     if not dur in ev1 or not dur in ev2:
         return False
     # We don't care about sub-second differences
-    d1 = round(ev1[dur], 0)
-    d2 = round(ev2[dur], 0)
+    d1 = round(float(ev1[dur]), 0)
+    d2 = round(float(ev2[dur]), 0)
     return d1 == d2
 
 def matching_instants(
@@ -61,15 +62,15 @@ def matching_instants(
         )
     return None
 
-def make_instant_housenet(ev: dict) -> Optional[InstantaneousValues]:
+def make_instant_housenet(ev: Event | None) -> Optional[InstantaneousValues]:
     """Helper for case where no solar merge is expected."""
     if ev is None:
         return None
     return InstantaneousValues(
-        starttime_utc = ev[KEY_START],
+        starttime_utc = int(ev[KEY_START]),
         solar_watts = 0,
-        housenet_watts = ev[KEY_WATTS],
-        duration_s = round(ev[KEY_DUR_S], 0)
+        housenet_watts = float(ev[KEY_WATTS]),
+        duration_s = int(round(float(ev[KEY_DUR_S]), 0))
     )
 
 def matching_summations(
@@ -81,7 +82,7 @@ def matching_summations(
     housenet = housenet_events.find_by_key(KEY_START, starttime_utc)
     if solar is not None and housenet is not None:
         return SummationValues(
-            starttime_utc = starttime_utc,
+            starttime_utc = int(starttime_utc),
             solar_summation =solar[KEY_SUM_J],
             solar_resettime = solar[KEY_RESET],
             housenet_summation = housenet[KEY_SUM_J],
@@ -89,16 +90,16 @@ def matching_summations(
         )
     return None
 
-def make_summation_housenet(ev: dict) -> Optional[SummationValues]:
+def make_summation_housenet(ev: Event | None) -> Optional[SummationValues]:
     """Helper for case where no solar merge is expected."""
     if ev is None:
         return None
     return SummationValues(
-        starttime_utc = ev[KEY_START],
+        starttime_utc = int(ev[KEY_START]),
         solar_summation = 0,
         solar_resettime = 0,
-        housenet_summation = ev[KEY_SUM_J],
-        housenet_resettime = ev[KEY_RESET]
+        housenet_summation = float(ev[KEY_SUM_J]),
+        housenet_resettime = int(ev[KEY_RESET]),
     )
 
 
@@ -165,7 +166,7 @@ class VirtualHousehold(AsyncEventEmitter):
         self._solar_summations = EventBuffer(5)
         self._housenet_summations = EventBuffer(5)
 
-    async def process_average_power_event(self, ev: dict):
+    async def process_average_power_event(self, ev: Event) -> None:
         """Ingests an event of type 'average_power'."""
         if not KEY_START in ev:
             return
@@ -181,7 +182,7 @@ class VirtualHousehold(AsyncEventEmitter):
                 self._solar_instants.append(ev)
                 await self._process_instants(starttime_utc)
 
-    async def process_summation_event(self, ev: dict):
+    async def process_summation_event(self, ev: Event) -> None:
         """Ingests an event of type 'summation_energy'."""
         if not KEY_START in ev:
             return
@@ -197,7 +198,7 @@ class VirtualHousehold(AsyncEventEmitter):
                 self._solar_summations.append(ev)
                 await self._process_summations(starttime_utc)
 
-    async def _process_instants(self, starttime_utc: int):
+    async def _process_instants(self, starttime_utc: int) -> None:
         if self._expect_solar:
             v = matching_instants(starttime_utc, self._solar_instants, self._housenet_instants)
         else:
@@ -226,7 +227,7 @@ class VirtualHousehold(AsyncEventEmitter):
                 'watts': -v.housenet_watts if v.housenet_watts < 0 else 0,
             })
 
-    async def _process_summations(self, starttime_utc: int):
+    async def _process_summations(self, starttime_utc: int) -> None:
         if self._expect_solar:
             v = matching_summations(
                 starttime_utc,
@@ -284,7 +285,7 @@ class VirtualHousehold(AsyncEventEmitter):
             self._clear_counters(starttime_utc)
         return res
 
-    def _clear_counters(self, resettime_utc: int):
+    def _clear_counters(self, resettime_utc: int) -> None:
         self._counters = self.Counters(resettime_utc, 0, 0, 0, 0)
 
     def _calculate_summation_deltas(self, v: SummationValues) -> SummationDeltas:
@@ -303,7 +304,7 @@ class VirtualHousehold(AsyncEventEmitter):
             home_use = max(housenet_delta - solar_delta, 0)
         )
 
-    def _increment_counters(self, d: SummationDeltas):
+    def _increment_counters(self, d: SummationDeltas) -> None:
         self._counters.solar_generation += d.solar_generation
         self._counters.to_grid += d.to_grid
         self._counters.from_grid += d.from_grid

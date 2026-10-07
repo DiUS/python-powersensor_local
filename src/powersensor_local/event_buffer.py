@@ -14,9 +14,9 @@ class EventBuffer:
     """
     def __init__(self, keep: int):
         self._keep = keep
-        self._evs: list = []
+        self._evs: list[Any] = []
 
-    def find_by_key(self, key: str, value: Any):
+    def find_by_key(self, key: str, value: Any) -> Any | None:
         """Return the first event that contains ``key`` with the given ``value``.
 
         Parameters
@@ -36,7 +36,7 @@ class EventBuffer:
                 return ev
         return None
 
-    def append(self, ev: dict):
+    def append(self, ev: dict[str, Any]) -> None:
         """Add an event to the buffer.
 
         If adding the new event would exceed ``self._keep``, the oldest event
@@ -51,7 +51,7 @@ class EventBuffer:
         if len(self._evs) > self._keep:
             del self._evs[0]
 
-    def evict_older(self, key: str, value: float):
+    def evict_older(self, key: str, value: float) -> None:
         """Remove events that are older than a given timestamp.
 
         Events are considered *older* if they contain ``key`` and its value is

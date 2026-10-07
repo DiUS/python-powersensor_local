@@ -1,8 +1,8 @@
 """Zeroconf/mDNS-based discovery for Powersensor devices.
 
 This module provides PowersensorZeroconfDevices, which uses continuous mDNS
-browsing to discover Powersensor plugs rather than the legacy one-shot UDP
-broadcast in PowersensorLegacyDevices.
+browsing to discover Powersensor plugs rather than the alternative, legacy
+one-shot UDP broadcast in PowersensorLegacyDevices.
 
 The zeroconf package is an optional dependency.  Install it via::
 
@@ -12,12 +12,10 @@ Architecture
 ------------
 PowersensorZeroconfDevices owns the full lifecycle:
 
-- It starts a zeroconf ServiceBrowser that calls back on plug add/update/remove.
+- It starts a zeroconf AsyncServiceBrowser that calls back on plug
+  add/update/remove.
 - Plug removals are debounced (default 60 s) to absorb transient disappearances
   such as reboots or DHCP renewals.
-- The public add_plug() / remove_plug() methods are the seam between discovery
-  and the plug API lifecycle, and can also be called directly (e.g. from a
-  test or from HA's own mDNS handler) without needing a real zeroconf instance.
 
 Zeroconf instance ownership
 ----------------------------
@@ -28,38 +26,23 @@ pattern for Home Assistant, which maintains a single shared zeroconf instance.
 
 Thread safety
 -------------
-On zeroconf >= 0.32 (including Home Assistant's 0.149.x), ServiceBrowser
-callbacks run inside the asyncio event loop rather than on a background thread.
-On older zeroconf (e.g. 1.0.0, which used a select() thread), they run on a
-background thread.
-
-``_Listener`` is therefore written to be safe in both models:
-
-- ``_extract`` uses ``ServiceInfo.load_from_cache()`` rather than
-  ``Zeroconf.get_service_info()``.  On >= 0.32, calling get_service_info()
-  from inside a ServiceBrowser callback deadlocks — it blocks waiting for a
-  DNS reply that can never arrive because it holds the event loop.
-  load_from_cache() is synchronous, non-blocking, and explicitly threadsafe;
-  the ServiceBrowser guarantees the cache is populated before firing the
-  callback, so the record is always present.
-
-- ``_name_to_mac`` is populated in ``add_service`` / ``update_service`` and
-  consumed in ``remove_service``.  On >= 0.32 all three callbacks run on the
-  same event loop thread, so no locking is needed.  On older versions they run
-  on the same zeroconf background thread, so no locking is needed there either.
-
-- All work that touches PowersensorZeroconfDevices state crosses the thread
-  boundary via ``loop.call_soon_threadsafe``, making it safe regardless of
-  which threading model the installed zeroconf uses.
+PowersensorZeroconfDevices uses purely async zeroconf discovery where all
+callbacks are fired on the event loop rather than a separate thread. Older
+versions of zeroconf that do not provide this guarantee are not supported.
+Mixing of event loops is also not supported - a single
+PowersensorZeroconfDevices cannot be used on more than one event loop or thread.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import sys
-from typing import Any
+from typing import Any, Callable, Coroutine
 
-from .devices import _PowersensorDevicesBase, _LogLevel
+from .devices import _AsyncCallback, _LogLevel, _PowersensorDevicesBase
+
+_InternalCallback = Coroutine[None, None, None]
+
 
 _SERVICE_TYPE_UDP = '_powersensor._udp.local.'
 _SERVICE_TYPE_TCP = '_powersensor._tcp.local.'
@@ -69,6 +52,8 @@ _DEBOUNCE_DEFAULT_S = 60.0
 
 try:
     import zeroconf as _zc
+    from zeroconf.asyncio import AsyncServiceBrowser
+
     class PowersensorZeroconfDevices(_PowersensorDevicesBase):
         """Discovers and manages Powersensor plugs via continuous mDNS browsing.
 
@@ -136,12 +121,13 @@ try:
             self._browser: Any = None
             self._listener: _Listener | None = None
             self._pending_removals: dict[str, asyncio.TimerHandle] = {}
+            self._internal_callbacks: set[asyncio.Task[None]] = set()
 
         # ------------------------------------------------------------------
         # Lifecycle
         # ------------------------------------------------------------------
 
-        async def start(self, async_event_cb) -> None:
+        async def start(self, async_event_cb: _AsyncCallback) -> None:
             """Register the event callback and start the mDNS service browser.
 
             The browser is event-driven; no polling loop is started here.
@@ -157,21 +143,27 @@ try:
 
             if self._zc_instance is None:
                 self._zc_instance = _zc.Zeroconf()
+                self._zc_owned = False
 
-            loop = asyncio.get_running_loop()
-            self._listener = _Listener(self, loop)
-            self._browser = _zc.ServiceBrowser(
+            self._listener = _Listener(self)
+            self._browser = AsyncServiceBrowser(
                 self._zc_instance, self._service_type, self._listener
             )
 
         async def stop(self) -> None:
             """Stop browsing, cancel pending removals, and disconnect all plugs."""
+            # This should be a noop under sane conditions
+            for cb in self._internal_callbacks:
+              cb.cancel()
+
+            self._event_cb = None
+
             for handle in list(self._pending_removals.values()):
                 handle.cancel()
             self._pending_removals.clear()
 
             if self._browser is not None:
-                self._browser.cancel()
+                await self._browser.async_cancel()
                 self._browser = None
 
             self._listener = None
@@ -183,35 +175,7 @@ try:
             await super().stop()
 
         # ------------------------------------------------------------------
-        # Public discovery seam — may also be called directly
-        # ------------------------------------------------------------------
-
-        def add_plug(self, mac: str, ip: str, port: int) -> None:
-            """Notify that a plug is present at the given address.
-
-            Creates or reconnects the PlugApi for this plug.  Safe to call
-            directly without a zeroconf browser (e.g. from tests, or from HA's
-            own mDNS handler).  Cancels any pending debounced removal for this MAC.
-
-            Must be called from the event loop thread.
-            """
-            self._cancel_pending_removal(mac, source='add_plug')
-            asyncio.get_running_loop().create_task(
-                self._plug_discovered(mac, ip, port)
-            )
-
-        def remove_plug(self, mac: str) -> None:
-            """Schedule a debounced removal for the given plug.
-
-            After ``debounce_timeout`` seconds with no re-announcement, the plug
-            API is disconnected and a ``device_lost`` event is emitted.
-
-            Must be called from the event loop thread.
-            """
-            self._schedule_removal(mac)
-
-        # ------------------------------------------------------------------
-        # Debounce helpers (event-loop side only)
+        # Debounce helpers
         # ------------------------------------------------------------------
 
         def _schedule_removal(self, mac: str) -> None:
@@ -230,7 +194,7 @@ try:
             """Called by the event loop when the debounce timer fires."""
             self._pending_removals.pop(mac, None)
             self._maybe_log(_LogLevel.INFO, "Plug %s still absent after debounce — removing", mac)
-            asyncio.get_running_loop().create_task(self._plug_lost(mac))
+            self._internal_callback(self._plug_lost(mac))
 
         def _cancel_pending_removal(self, mac: str, source: str) -> None:
             handle = self._pending_removals.pop(mac, None)
@@ -239,45 +203,36 @@ try:
                 self._maybe_log(_LogLevel.DEBUG, "Cancelled pending removal for %s (%s)", mac, source)
 
         # ------------------------------------------------------------------
-        # Called from _Listener (zeroconf thread → event loop via stored loop ref)
+        # Called from _Listener
         # ------------------------------------------------------------------
 
-        def _on_zc_add(self, mac: str, ip: str, port: int, loop: asyncio.AbstractEventLoop) -> None:
-            loop.call_soon_threadsafe(self._cancel_pending_removal, mac, 'zeroconf add')
-            loop.call_soon_threadsafe(
-                lambda: loop.create_task(self._plug_discovered(mac, ip, port))
-            )
+        async def _on_zc_add(self, mac: str, ip: str, port: int) -> None:
+            self._cancel_pending_removal( mac, 'zeroconf add')
+            await self._plug_discovered(mac, ip, port)
 
-        def _on_zc_update(self, mac: str, ip: str, port: int, loop: asyncio.AbstractEventLoop) -> None:
-            loop.call_soon_threadsafe(self._cancel_pending_removal, mac, 'zeroconf update')
-            loop.call_soon_threadsafe(
-                lambda: loop.create_task(self._plug_discovered(mac, ip, port))
-            )
+        async def _on_zc_update(self, mac: str, ip: str, port: int) -> None:
+            self._cancel_pending_removal(mac, 'zeroconf update')
+            await self._plug_discovered(mac, ip, port)
 
-        def _on_zc_remove(self, mac: str, loop: asyncio.AbstractEventLoop) -> None:
-            loop.call_soon_threadsafe(self._schedule_removal, mac)
+        async def _on_zc_remove(self, mac: str) -> None:
+            self._schedule_removal(mac)
+
+        # ------------------------------------------------------------------
+        # Sync to async bridge for callbacks, per asyncio docs
+        # ------------------------------------------------------------------
+
+        def _internal_callback(self, coro: _InternalCallback) -> None:
+            """Helper to prevent gc collection of short-lived callback tasks."""
+            task = asyncio.create_task(coro)
+            self._internal_callbacks.add(task)
+            task.add_done_callback(self._internal_callbacks.discard)
 
 
     class _Listener(_zc.ServiceListener):
-        """Zeroconf ServiceListener that forwards events to PowersensorZeroconfDevices.
+        """Zeroconf ServiceListener that forwards events to PowersensorZeroconfDevices."""
 
-        Internal implementation detail.  All ServiceListener callbacks arrive on
-        the zeroconf event loop (>= 0.32) or background thread (< 0.32 / 1.0.0).
-
-        Thread safety
-        -------------
-        ``_name_to_mac`` is populated in ``add_service`` / ``update_service`` and
-        consumed in ``remove_service``.  In both threading models all three
-        callbacks arrive on the same thread/loop, so no locking is required.
-
-        The stored ``_loop`` reference is captured once at construction from the
-        running asyncio event loop, and is used (read-only) from the callback
-        context to schedule work back onto that loop via ``call_soon_threadsafe``.
-        """
-
-        def __init__(self, owner: PowersensorZeroconfDevices, loop: asyncio.AbstractEventLoop) -> None:
+        def __init__(self, owner: PowersensorZeroconfDevices) -> None:
             self._owner = owner
-            self._loop = loop
             self._name_to_mac: dict[str, str] = {}
 
         def _extract(self, zc: Any, type_: str, name: str) -> tuple[str, str, int] | None:
@@ -339,7 +294,7 @@ try:
                 return
             mac, ip, port = result
             self._name_to_mac[name] = mac
-            self._owner._on_zc_add(mac, ip, port, self._loop)
+            self._owner._internal_callback(self._owner._on_zc_add(mac, ip, port))
 
         def update_service(self, zc: Any, type_: str, name: str) -> None:
             result = self._extract(zc, type_, name)
@@ -352,7 +307,7 @@ try:
                 return
             mac, ip, port = result
             self._name_to_mac[name] = mac
-            self._owner._on_zc_update(mac, ip, port, self._loop)
+            self._owner._internal_callback(self._owner._on_zc_update(mac, ip, port))
 
         def remove_service(self, zc: Any, type_: str, name: str) -> None:
             mac = self._name_to_mac.pop(name, None)
@@ -362,7 +317,7 @@ try:
                     "remove_service for %s: MAC not in cache — removal ignored", name,
                 )
                 return
-            self._owner._on_zc_remove(mac, self._loop)
+            self._owner._internal_callback(self._owner._on_zc_remove(mac))
 
 except ImportError as exc:
     _zeroconf_import_error = exc

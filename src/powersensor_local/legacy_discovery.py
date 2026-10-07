@@ -8,15 +8,15 @@ PORT = 49476
 class LegacyDiscovery(asyncio.DatagramProtocol):
     """The legacy alternative to using mDNS discovery."""
 
-    def __init__(self, broadcast_addr = '<broadcast>'):
+    def __init__(self, broadcast_addr: str = '<broadcast>'):
         """Initialises a new discovery object.
         Optionally takes a specific broadcast address to use.
         """
         super().__init__()
-        self._dst_addr = broadcast_addr
-        self._found = {}
+        self._dst_addr: str = broadcast_addr
+        self._found: dict[str,dict[str,str]] = {}
 
-    async def scan(self, timeout_sec = 2.0):
+    async def scan(self, timeout_sec: float = 2.0) -> list[dict[str,str]]:
         """Scans the local network for discoverable devices.
         Returns the list of devices found, with each device represented
         in the format:
@@ -45,11 +45,11 @@ class LegacyDiscovery(asyncio.DatagramProtocol):
         transport.close()
         return list(self._found.values())
 
-    def protocol_factory(self):
+    def protocol_factory(self) -> asyncio.DatagramProtocol:
         """UDP protocol factory."""
         return self
 
-    def datagram_received(self, data, addr):
+    def datagram_received(self, data, addr) -> None: # type: ignore
         try:
             response = json.loads(data.decode('utf-8'))
             ip = response['ip']

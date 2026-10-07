@@ -4,7 +4,7 @@ import sys
 from .async_event_emitter import AsyncEventEmitter
 from .plug_listener_tcp import PlugListenerTcp
 from .plug_listener_udp import PlugListenerUdp
-from .xlatemsg import translate_raw_message
+from .xlatemsg import translate_raw_message, Event, Message
 
 class PlugApi(AsyncEventEmitter):
     """
@@ -17,7 +17,7 @@ class PlugApi(AsyncEventEmitter):
     documented in xlatemsg.translate_raw_message.
     """
 
-    def __init__(self, mac, ip, port=49476, proto='udp'):
+    def __init__(self, mac: str, ip: str, port: int = 49476, proto: str = 'udp'):
         """Create a :class:`PlugApi` instance for a single plug.
 
         Parameters
@@ -39,7 +39,8 @@ class PlugApi(AsyncEventEmitter):
             If *proto* is not ``'udp'`` or ``'tcp'``.
         """
         super().__init__()
-        self._mac = mac
+        self._mac: str = mac
+        self._listener: PlugListenerUdp | PlugListenerTcp
         if proto == 'udp':
             self._listener = PlugListenerUdp(ip, port)
         elif proto == 'tcp':
@@ -48,9 +49,9 @@ class PlugApi(AsyncEventEmitter):
             raise ValueError(f'Unsupported proto: {proto}')
         self._listener.subscribe('message', self._on_message)
         self._listener.subscribe('exception', self._on_exception)
-        self._seen = set()
+        self._seen: set[str] = set()
 
-    def connect(self):
+    def connect(self) -> None:
         """
         Initiates a connection to the plug.
 
@@ -59,11 +60,11 @@ class PlugApi(AsyncEventEmitter):
         """
         self._listener.connect()
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnects from the plug and stops further connection attempts."""
         await self._listener.disconnect()
 
-    async def _on_message(self, _, message):
+    async def _on_message(self, _: str, message: Message) -> None:
         """Translates the raw message and emits the resulting messages, if any.
 
         Also synthesizes 'now_relaying_for' messages as needed.
@@ -75,25 +76,29 @@ class PlugApi(AsyncEventEmitter):
             return
 
         msgmac = message.get('mac')
-        if msgmac != self._mac and msgmac not in self._seen:
-            self._seen.add(msgmac)
+        if msgmac is not None and msgmac != self._mac and msgmac not in self._seen:
+            self._seen.add(str(msgmac))
             # We want to emit this prior to events with data
-            ev = {
+            ev: Event = {
                 'mac': msgmac,
-                'device_type': message.get('device'),
-                'role': message.get('role'),
             }
+            dev = message.get('device')
+            if dev is not None:
+              ev['device_type'] = dev
+            role = message.get('role')
+            if role is not None:
+              ev['role'] = role
             await self.emit('now_relaying_for', ev)
 
         for name, ev in evs.items():
             await self.emit(name, ev)
 
-    async def _on_exception(self, _, e):
+    async def _on_exception(self, _: str, e: Exception) -> None:
         """Propagates exceptions from the plug listener."""
         await self.emit('exception', e)
 
     @property
-    def ip_address(self):
+    def ip_address(self) -> str:
         """
         Return the IP address provided on construction.
 
@@ -105,7 +110,7 @@ class PlugApi(AsyncEventEmitter):
         return self._listener.ip
 
     @property
-    def port(self):
+    def port(self) -> int:
         """
         Return the port number provided on construction.
 

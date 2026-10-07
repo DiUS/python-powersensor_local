@@ -5,9 +5,13 @@ import sys
 
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Callable, Coroutine
 
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi
+from .xlatemsg import Event
+
+_AsyncCallback = Callable[[Event], Coroutine[None, None, None]]
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60
@@ -46,9 +50,17 @@ class _PowersensorDevicesBase:
 
     **device_found**
         A device has been discovered or re-discovered.
+
         Note that due to device hardware limitations, role information is NOT
         reliably available at this time, and therefore not included in this
-        message.
+        message. There are situations where role information will never become
+        available, and therefore the API can make no promises otherwise. If a
+        user requires role information, they must manage that themselves and
+        also provide a mechanism for handling the situation of a device not
+        being able to provide role information in the first place. If a device
+        does supply a role at any point, it should be considered authoritative
+        and override any user provided value.
+
         ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
 
     **device_lost**
@@ -96,7 +108,7 @@ class _PowersensorDevicesBase:
             library emits debug/warning/error messages via this logger.  When
             None (default) the library is completely silent.
         """
-        self._event_cb = None
+        self._event_cb: _AsyncCallback | None = None
         self._devices: dict[str, '_PowersensorDevicesBase._Device'] = {}
         self._plug_apis: dict[str, PlugApi] = {}
         self._timer: '_PowersensorDevicesBase._Timer | None' = None
@@ -107,7 +119,7 @@ class _PowersensorDevicesBase:
     # Internal logging helper
     # ------------------------------------------------------------------
 
-    def _maybe_log(self, level: _LogLevel, msg: str, *args) -> None:
+    def _maybe_log(self, level: _LogLevel, msg: str, *args: Any) -> None:
         """Emit a log message if a logger was provided at construction."""
         if self._logger is None:
             return
@@ -191,7 +203,7 @@ class _PowersensorDevicesBase:
     # Internal event routing
     # ------------------------------------------------------------------
 
-    async def _emit_if_subscribed(self, ev: str, mac: str, obj: dict) -> None:
+    async def _emit_if_subscribed(self, ev: str, mac: str, obj: Event) -> None:
         if self._event_cb is None:
             return
         device = self._devices.get(mac)
@@ -199,11 +211,12 @@ class _PowersensorDevicesBase:
             obj['event'] = ev
             await self._event_cb(obj)
 
-    async def _reemit(self, ev: str, obj: dict[str, str]) -> None:
-        mac: str|None = obj.get('mac')
+    async def _reemit(self, ev: str, obj: Event) -> None:
+        mac = obj.get('mac')
         if mac is None:
             self._maybe_log(_LogLevel.WARNING, "Received event '%s' with no MAC address — ignoring", ev)
             return
+        mac = str(mac)
         device = self._devices.get(mac)
         if device is not None:
             device.mark_active()
@@ -264,7 +277,7 @@ class _PowersensorDevicesBase:
             return delta.total_seconds() > EXPIRY_TIMEOUT_S
 
     class _Timer:
-        def __init__(self, interval_s: float, callback) -> None:
+        def __init__(self, interval_s: float, callback: Callable[[], Coroutine[Any, Any, None]]):
             self._terminate = False
             self._interval = interval_s
             self._callback = callback
@@ -300,7 +313,7 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
         super().__init__(relay_now_relaying_for=relay_now_relaying_for, logger=logger)
         self._discovery = LegacyDiscovery(bcast_addr)
 
-    async def start(self, async_event_cb) -> int:
+    async def start(self, async_event_cb: _AsyncCallback) -> int:
         """Register the async event callback and scan the local network.
 
         The callback has the form::
@@ -329,7 +342,7 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
         """Perform a fresh scan to discover added or moved devices."""
         await self._on_scanned(await self._discovery.scan())
 
-    async def _on_scanned(self, found: list) -> None:
+    async def _on_scanned(self, found: list[dict[str,str]]) -> None:
         for device in found:
             mac = device['id']
             ip = device['ip']

@@ -22,7 +22,7 @@ if PROJECT_ROOT not in sys.path:
 # pylint: disable=C0413
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 from powersensor_local.zeroconf_devices import PowersensorZeroconfDevices
-
+from powersensor_local.xlatemsg import Event
 
 class ZcEventLoopRunner(AbstractEventHandler):
     """Main logic wrapper."""
@@ -35,11 +35,11 @@ class ZcEventLoopRunner(AbstractEventHandler):
     async def on_exit(self) -> None:
         await self.devices.stop()
 
-    async def on_message(self, obj: dict) -> None:
+    async def on_message(self, obj: Event) -> None:
         """Print every event and subscribe to any newly discovered device."""
         print(obj)
         if obj['event'] == 'device_found':
-            self.devices.subscribe(obj['mac'])
+            self.devices.subscribe(str(obj['mac']))
 
     async def main(self) -> None:
         self.register_sigint_handler()

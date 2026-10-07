@@ -8,6 +8,7 @@ import sys
 
 from powersensor_local.devices import PowersensorDevices
 from powersensor_local.abstract_event_handler import AbstractEventHandler
+from powersensor_local.xlatemsg import Event
 
 class EventLoopRunner(AbstractEventHandler):
     """Main logic wrapper."""
@@ -18,11 +19,11 @@ class EventLoopRunner(AbstractEventHandler):
         if self.devices is not None:
             await self.devices.stop()
 
-    async def on_message(self, obj) -> None:
+    async def on_message(self, obj: Event) -> None:
         """Callback for printing received events."""
         print(obj)
         if obj['event'] == 'device_found':
-            self.devices.subscribe(obj['mac'])
+            self.devices.subscribe(str(obj['mac']))
 
     async def main(self) -> None:
         if self.devices is None:

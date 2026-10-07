@@ -8,7 +8,7 @@ ROLE_HOUSENET = 'house-net'
 ROLE_SOLAR = 'solar'
 ROLE_WATER = 'water'
 
-def test_raw_woh_sensor_msg():
+def test_raw_woh_sensor_msg() -> None:
     """Test normal whole-of-house message translation."""
     msg = json.loads('{"starttime": 1772164705, "raw_rssi": -91, "device": "sensor", "rssi": -89.0397534995969, "type": "instant_power", "summation_start": 1769972064, "batteryMicrovolt": 3803104, "mac": "bcddc247d1f5", "duration": 30, "role": "house-net", "power": 992, "unit": "w", "summation": -281230401}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -25,7 +25,7 @@ def test_raw_woh_sensor_msg():
     assert(res['summation_energy'] == summation_energy)
 
 
-def test_raw_woh_sensor_msg_no_summation_start():
+def test_raw_woh_sensor_msg_no_summation_start() -> None:
     """Test legacy firmware without summation_start field."""
     msg = json.loads('{"starttime": 1772164705, "raw_rssi": -91, "device": "sensor", "rssi": -89.0397534995969, "type": "instant_power", "batteryMicrovolt": 3803104, "mac": "bcddc247d1f5", "duration": 30, "role": "house-net", "power": 992, "unit": "w", "summation": -281230401}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -40,14 +40,14 @@ def test_raw_woh_sensor_msg_no_summation_start():
     assert(res['radio_signal_quality'] == radio_signal_quality)
 
 
-def test_raw_woh_sensor_msg_malformed():
+def test_raw_woh_sensor_msg_malformed() -> None:
     """Verify reports with missing field raises an exception."""
     msg = json.loads('{"raw_rssi": -91, "device": "sensor", "rssi": -89.0397534995969, "type": "instant_power", "summation_start": 1769972064, "batteryMicrovolt": 3803104, "mac": "bcddc247d1f5", "duration": 30, "role": "house-net", "power": 992, "unit": "w", "summation": -281230401}')
     with pytest.raises(KeyError):
         translate_raw_message(msg, RELAY_MAC)
 
 
-def test_raw_solar_sensor_msg():
+def test_raw_solar_sensor_msg() -> None:
     """Test regular solar sensor message translation."""
     msg = json.loads('{"starttime": 1772164915, "raw_rssi": -91, "device": "sensor", "rssi": -89.14350517179614, "type": "instant_power", "summation_start": 1770530454, "batteryMicrovolt": 4106208, "mac": "bcddc247d289", "duration": 30, "role": "solar", "power": -331, "unit": "w", "summation": -906357844}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -64,7 +64,7 @@ def test_raw_solar_sensor_msg():
     assert(res['summation_energy'] == summation_energy)
 
 
-def test_raw_solar_sensor_msg_uncalibrated():
+def test_raw_solar_sensor_msg_uncalibrated() -> None:
     """Test uncalibrated solar sensor message translation."""
     msg = json.loads('{"starttime": 1772164915, "raw_rssi": -91, "device": "sensor", "rssi": -89.14350517179614, "type": "instant_power", "summation_start": 1770530454, "batteryMicrovolt": 4106208, "mac": "bcddc247d289", "duration": 30, "role": "solar", "power": -331, "unit": "U", "summation": -906357844}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -79,7 +79,7 @@ def test_raw_solar_sensor_msg_uncalibrated():
     assert(res['uncalibrated_average_reading'] == uncalibrated_average_reading)
 
 
-def test_raw_plug_power_msg():
+def test_raw_plug_power_msg() -> None:
     """Test regular plug message translation."""
     msg = json.loads('{"reactive_current": 0.006468, "type": "instant_power", "summation_start": 1770501947.113085, "count": 13, "duration": 1.039551, "role": "appliance", "power": 1.033781, "unit": "W", "device": "plug", "source": "BLE", "active_current": 0.004582, "mac": "246f280487a4", "voltage": 232.113508, "starttime": 1772164754.096228, "current": 0.14132, "borrowed_summation": 0.132574, "summation": 5103988.143331}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -94,7 +94,7 @@ def test_raw_plug_power_msg():
     assert(res['summation_energy'] == summation_energy)
 
 
-def test_raw_sensor_invalid_sample_msg():
+def test_raw_sensor_invalid_sample_msg() -> None:
     """Test (rare) invalid sensor sample report."""
     msg = json.loads('{"starttime": 1772164705, "raw_rssi": -91, "device": "sensor", "rssi": -89.0397534995969, "type": "instant_power", "batteryMicrovolt": 3803104, "mac": "bcddc247d1f5", "duration": 30, "role": "house-net", "unit": "I"}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -107,7 +107,7 @@ def test_raw_sensor_invalid_sample_msg():
     assert(res['radio_signal_quality'] == radio_signal_quality)
 
 
-def test_raw_water_sensor__msg():
+def test_raw_water_sensor__msg() -> None:
     """Test regular water sensor message translation."""
     msg = json.loads('{"starttime": 1772164765, "raw_rssi": -89, "device": "sensor", "rssi": -87.03, "type": "instant_power", "summation_start": 1769972151, "batteryMicrovolt": 3612871, "mac": "bcddc247d338", "duration": 30, "role": "water", "power": 92, "unit": "L", "summation": 1321, "average_flow": 9.2, "summation_volume": 132.1}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -124,7 +124,7 @@ def test_raw_water_sensor__msg():
     assert(res['summation_volume'] == summation_volume)
 
 
-def test_raw_water_sensor__msg_legacy():
+def test_raw_water_sensor__msg_legacy() -> None:
     """Ensure old, unscaled water messages are suppressed cleanly."""
     msg = json.loads('{"starttime": 1772164765, "raw_rssi": -89, "device": "sensor", "rssi": -87.03, "type": "instant_power", "summation_start": 1769972151, "batteryMicrovolt": 3612871, "mac": "bcddc247d338", "duration": 30, "role": "water", "power": 92, "unit": "L", "summation": 1321}')
     res = translate_raw_message(msg, RELAY_MAC)
@@ -137,49 +137,49 @@ def test_raw_water_sensor__msg_legacy():
     assert(res['radio_signal_quality'] == radio_signal_quality)
 
 
-def test_unused_msg_auxiliary():
+def test_unused_msg_auxiliary() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "auxiliary", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)
     assert(len(res) == 0)
 
 
-def test_unused_msg_raw_waveform():
+def test_unused_msg_raw_waveform() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "raw_waveform", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)
     assert(len(res) == 0)
 
 
-def test_unused_msg_adc():
+def test_unused_msg_adc() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "adc", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)
     assert(len(res) == 0)
 
 
-def test_unused_msg_ble_stats():
+def test_unused_msg_ble_stats() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "ble_stats", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)
     assert(len(res) == 0)
 
 
-def test_unused_msg_sensor():
+def test_unused_msg_sensor() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "sensor", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)
     assert(len(res) == 0)
 
 
-def test_unused_msg_lrradio():
+def test_unused_msg_lrradio() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "lrradio", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)
     assert(len(res) == 0)
 
 
-def test_unused_msg_plug_announce():
+def test_unused_msg_plug_announce() -> None:
     """Test unused message type doesn't propagate."""
     msg = json.loads('{"starttime": 1772164705, "device": "plug", "type": "plug_announce", "mac": "bcddc247d1f5", "role": "appliance"}')
     res = translate_raw_message(msg, RELAY_MAC)

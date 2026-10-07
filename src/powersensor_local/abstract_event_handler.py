@@ -2,6 +2,7 @@
 import asyncio
 import signal
 from abc import ABC, abstractmethod
+from types import FrameType
 
 class AbstractEventHandler(ABC):
     """Base class to handle signals and the asyncio loop.
@@ -13,7 +14,7 @@ class AbstractEventHandler(ABC):
     """
     exiting: bool = False
     @abstractmethod
-    async def on_exit(self):
+    async def on_exit(self) -> None:
         """Called when a SIGINT is received.
 
         Subclasses should override this method to perform any cleanup
@@ -21,7 +22,7 @@ class AbstractEventHandler(ABC):
         the handler sets :pyattr:`exiting` to ``True``.
         """
 
-    async def _do_exit(self):
+    async def _do_exit(self) -> None:
         """Internal helper that runs ``on_exit`` and marks the handler as
         exiting.  This coroutine is scheduled by :py:meth:`__handle_sigint`
         when a SIGINT signal arrives.
@@ -30,7 +31,7 @@ class AbstractEventHandler(ABC):
         self.exiting = True
 
     @abstractmethod
-    async def main(self):
+    async def main(self) -> None:
         """Main coroutine to be executed by the event loop.
 
         Subclasses must implement this method.  It should contain the
@@ -39,7 +40,7 @@ class AbstractEventHandler(ABC):
         """
 
     # Signal handler for Ctrl+C
-    def register_sigint_handler(self):
+    def register_sigint_handler(self) -> None:
         """Register the SIGINT (Ctrl‑C) handler.
 
         This method sets :py:meth:`__handle_sigint` as the callback for
@@ -48,7 +49,7 @@ class AbstractEventHandler(ABC):
         """
         signal.signal(signal.SIGINT, self.__handle_sigint)
 
-    def __handle_sigint(self, signum, frame):
+    def __handle_sigint(self, signum: int, frame: FrameType | None) -> None:
         """Internal SIGINT callback.
 
         Prints diagnostic information and schedules :py:meth:`_do_exit`
@@ -56,13 +57,14 @@ class AbstractEventHandler(ABC):
         the default handler is restored to allow a second Ctrl‑C to
         terminate immediately.
         """
-        print(f"\nReceived signal: {signum}")
-        print(f"Signal name: {signal.Signals(signum).name}")
-        print(f"Interrupted at: {frame.f_code.co_filename}:{frame.f_lineno}")
+        if frame is not None:
+            print(f"\nReceived signal: {signum}")
+            print(f"Signal name: {signal.Signals(signum).name}")
+            print(f"Interrupted at: {frame.f_code.co_filename}:{frame.f_lineno}")
         signal.signal(signal.SIGINT, signal.SIG_DFL)
-        asyncio.create_task(self._do_exit())
+        self._exit_task = asyncio.create_task(self._do_exit())
 
-    def run(self):
+    def run(self) -> None:
         """Start the event loop and execute :py:meth:`main`.
 
         A new event loop is created, the SIGINT handler is registered,
@@ -73,7 +75,7 @@ class AbstractEventHandler(ABC):
         asyncio.run(self.main())
         loop.stop()
 
-    async def wait(self, seconds=1):
+    async def wait(self, seconds: int = 1) -> None:
         """Keep the event loop alive until a SIGINT is received.
 
         Parameters

@@ -1,16 +1,18 @@
 """Small helper class for pub/sub functionality with async handlers."""
 import logging
-from typing import Callable
+from typing import Any, Awaitable, Callable
+
+_OpenCallback = Callable[..., Awaitable[None]]
 
 class AsyncEventEmitter:
     """Small helper class for pub/sub functionality with async handlers.
     An optional Logger can be provided, which will be used to log any
     unhandled exceptions."""
     def __init__(self, logger: logging.Logger | None = None):
-        self._listeners: dict[str,list[Callable]] = {}
+        self._listeners: dict[str,list[_OpenCallback]] = {}
         self._logger = logger
 
-    def subscribe(self, event_name: str, callback: Callable):
+    def subscribe(self, event_name: str, callback: _OpenCallback) -> None:
         """Registers an event handler for the given event key. The handler must
         be async. Duplicate registrations are ignored."""
         if self._listeners.get(event_name) is None:
@@ -18,14 +20,14 @@ class AsyncEventEmitter:
         if not callback in self._listeners[event_name]:
             self._listeners[event_name].append(callback)
 
-    def unsubscribe(self, event_name: str, callback: Callable):
+    def unsubscribe(self, event_name: str, callback: _OpenCallback) -> None:
         """Unregisters the given event handler from the given event type."""
         if self._listeners.get(event_name) is None:
             return
         if callback in self._listeners[event_name]:
             self._listeners[event_name].remove(callback)
 
-    async def emit(self, event_name: str, *args):
+    async def emit(self, event_name: str, *args: Any) -> None:
         """Emits an event to all registered listeners for that event type.
         Additional arguments may be supplied with event as appropriate. Each
         event handler is awaited before delivering the event to the next.

@@ -143,7 +143,6 @@ try:
 
             if self._zc_instance is None:
                 self._zc_instance = _zc.Zeroconf()
-                self._zc_owned = False
 
             self._listener = _Listener(self)
             self._browser = AsyncServiceBrowser(

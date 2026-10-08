@@ -51,7 +51,7 @@ __all__ = [
     'Events',
     'Message',
 ]
-__version__ = "2.4.0rc1"
+__version__ = "2.4.0rc2"
 from .devices import PowersensorDevices, PowersensorLegacyDevices
 from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi

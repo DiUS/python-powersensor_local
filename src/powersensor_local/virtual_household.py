@@ -2,6 +2,7 @@
 
 import sys
 from dataclasses import dataclass
+from logging import Logger
 from typing import Optional
 
 from .async_event_emitter import AsyncEventEmitter
@@ -138,9 +139,9 @@ class VirtualHousehold(AsyncEventEmitter):
     field to take note of summation resets.
     """
 
-    def __init__(self, with_solar: bool):
+    def __init__(self, with_solar: bool, logger: Logger|None = None):
         """Constructor.
-        with_solar True if it's already known that solar exists. Will be
+        with_solar: True if it's already known that solar exists. Will be
           automatically enabled upon encountering a solar event during
           processing, but until such a time may generate incorrect values
           for home usage. Similarly, if this is set to True but no solar
@@ -156,8 +157,10 @@ class VirtualHousehold(AsyncEventEmitter):
           would be generating incorrect data until such a time the solar
           sensor is recharged. It is vastly preferable to have the system
           show no data than show incorrect data.
+        logger: An optional logger to capture leaked exceptions from event
+          callbacks.
         """
-        super().__init__()
+        super().__init__(logger)
         self._expect_solar = with_solar
         self._summation = self.SummationInfo(0, 0, 0, 0)
         self._counters = self.Counters(0, 0, 0, 0, 0)

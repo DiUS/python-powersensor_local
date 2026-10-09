@@ -46,9 +46,9 @@ class PlugApi(AsyncEventEmitter):
         self._mac: str = mac
         self._listener: PlugListenerUdp | PlugListenerTcp
         if proto == 'udp':
-            self._listener = PlugListenerUdp(ip, port)
+            self._listener = PlugListenerUdp(ip, port, logger)
         elif proto == 'tcp':
-            self._listener = PlugListenerTcp(ip, port)
+            self._listener = PlugListenerTcp(ip, port, logger)
         else:
             raise ValueError(f'Unsupported proto: {proto}')
         self._listener.subscribe('message', self._on_message)

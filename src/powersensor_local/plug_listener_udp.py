@@ -5,6 +5,7 @@ import socket
 import sys
 
 from asyncio import TimerHandle
+from logging import Logger
 from typing import Any, Coroutine
 
 from powersensor_local.async_event_emitter import AsyncEventEmitter
@@ -27,7 +28,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
     The event handlers must be async.
     """
 
-    def __init__(self, ip: str, port: int = 49476):
+    def __init__(self, ip: str, port: int = 49476, logger: Logger|None = None):
         """
         Create a :class:`PlugListenerUdp` bound to the given IP address.
 
@@ -38,7 +39,7 @@ class PlugListenerUdp(AsyncEventEmitter, asyncio.DatagramProtocol):
         port : int, optional
             UDP port used by the plug (default ``49476``).
         """
-        super().__init__()
+        super().__init__(logger = logger)
         self._ip: str  = ip
         self._port: int = port
         self._backoff: int = 0               # exponential backoff

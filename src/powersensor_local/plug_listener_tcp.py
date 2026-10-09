@@ -4,6 +4,7 @@ import json
 import sys
 
 from asyncio import StreamReader, StreamWriter
+from logging import Logger
 
 from powersensor_local.async_event_emitter import AsyncEventEmitter
 
@@ -23,7 +24,7 @@ class PlugListenerTcp(AsyncEventEmitter):
     The event handlers must be async.
     """
 
-    def __init__(self, ip: str, port: int = 49476):
+    def __init__(self, ip: str, port: int = 49476, logger: Logger|None = None):
         """
         Create a :class:`PlugListenerTcp` bound to the given IP address.
 
@@ -34,7 +35,7 @@ class PlugListenerTcp(AsyncEventEmitter):
         port : int, optional
             TCP port used by the plug (default ``49476``).
         """
-        super().__init__()
+        super().__init__(logger = logger)
         self._ip: str = ip
         self._port: int = port
         self._task: asyncio.Task[None] | None = None

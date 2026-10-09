@@ -1,6 +1,8 @@
 """Interface abstraction for Powersensor plugs."""
 import sys
 
+from logging import Logger
+
 from .async_event_emitter import AsyncEventEmitter
 from .plug_listener_tcp import PlugListenerTcp
 from .plug_listener_udp import PlugListenerUdp
@@ -17,7 +19,7 @@ class PlugApi(AsyncEventEmitter):
     documented in xlatemsg.translate_raw_message.
     """
 
-    def __init__(self, mac: str, ip: str, port: int = 49476, proto: str = 'udp'):
+    def __init__(self, mac: str, ip: str, port: int = 49476, proto: str = 'udp', logger: Logger | None = None):
         """Create a :class:`PlugApi` instance for a single plug.
 
         Parameters
@@ -32,23 +34,24 @@ class PlugApi(AsyncEventEmitter):
             Protocol used for communication.  ``'udp'`` selects :class:`PlugListenerUdp`,
             while ``'tcp'`` selects :class:`PlugListenerTcp`.  Any other value raises a
             :class:`ValueError`.
+        logger : Logger, optional
+            If provided, enables the logging of escaped exceptions from callbacks.
 
         Raises
         ------
         ValueError
             If *proto* is not ``'udp'`` or ``'tcp'``.
         """
-        super().__init__()
+        super().__init__(logger)
         self._mac: str = mac
         self._listener: PlugListenerUdp | PlugListenerTcp
         if proto == 'udp':
-            self._listener = PlugListenerUdp(ip, port)
+            self._listener = PlugListenerUdp(ip, port, logger)
         elif proto == 'tcp':
-            self._listener = PlugListenerTcp(ip, port)
+            self._listener = PlugListenerTcp(ip, port, logger)
         else:
             raise ValueError(f'Unsupported proto: {proto}')
         self._listener.subscribe('message', self._on_message)
-        self._listener.subscribe('exception', self._on_exception)
         self._seen: set[str] = set()
 
     def connect(self) -> None:
@@ -92,10 +95,6 @@ class PlugApi(AsyncEventEmitter):
 
         for name, ev in evs.items():
             await self.emit(name, ev)
-
-    async def _on_exception(self, _: str, e: Exception) -> None:
-        """Propagates exceptions from the plug listener."""
-        await self.emit('exception', e)
 
     @property
     def ip_address(self) -> str:

@@ -3,6 +3,7 @@
 """Utility script for accessing the plug api from a single network-local
 Powersensor device. Intended for advanced debugging use only."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -14,6 +15,8 @@ if PROJECT_ROOT not in sys.path:
 from powersensor_local.plug_api import PlugApi
 from powersensor_local.abstract_event_handler import AbstractEventHandler
 from powersensor_local.xlatemsg import Message
+
+LOGGER = logging.getLogger(__name__)
 
 async def print_event_and_message(event: str, message: Message) -> None:
     """Callback for printing event data."""
@@ -37,9 +40,11 @@ class PlugEvents(AbstractEventHandler):
         # Signal handler for Ctrl+C
         self.register_sigint_handler()
 
-        plug = PlugApi(sys.argv[1], sys.argv[2], int(*sys.argv[3:3]))
+        port = int(*sys.argv[3:3])
+        if port == 0:
+            port = 49476
+        plug = PlugApi(sys.argv[1], sys.argv[2], port, 'udp', LOGGER)
         known_evs = [
-            'exception',
             'average_flow',
             'average_power',
             'average_power_components',

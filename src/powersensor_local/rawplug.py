@@ -59,7 +59,6 @@ class RawPlug(AbstractEventHandler):
         else:
             print('Unsupported protocol:', self._protocol)
             sys.exit(1)
-        self.plug.subscribe('exception', print_message_ignore_event)
         self.plug.subscribe('message', print_message_ignore_event)
         self.plug.subscribe('connecting', print_event)
         self.plug.subscribe('connecting', print_event)

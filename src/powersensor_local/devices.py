@@ -21,7 +21,6 @@ _KNOWN_PLUG_EVENTS = [
     'average_power',
     'average_power_components',
     'battery_level',
-    'exception',
     'now_relaying_for',
     'radio_signal_quality',
     'summation_energy',
@@ -73,7 +72,7 @@ class _PowersensorDevicesBase:
     ``event`` field.  Known measurement events include:
 
     ``average_flow``, ``average_power``, ``average_power_components``,
-    ``battery_level``, ``exception``, ``now_relaying_for``,
+    ``battery_level``, ``now_relaying_for``,
     ``radio_signal_quality``, ``summation_energy``, ``summation_volume``.
 
     When ``relay_now_relaying_for=True`` the raw ``now_relaying_for`` wire
@@ -187,7 +186,7 @@ class _PowersensorDevicesBase:
             await self._remove_device(mac)
 
         await self._add_device(mac, 'plug')
-        api = PlugApi(mac, ip, port)
+        api = PlugApi(mac, ip, port, 'udp', self._logger)
         self._plug_apis[mac] = api
         for event in _KNOWN_PLUG_EVENTS:
             api.subscribe(event, self._reemit)

@@ -40,4 +40,4 @@ class AsyncEventEmitter:
                 await callback(event_name, *args)
             except Exception as e:
                 if self._logger is not None:
-                    self._logger.exception(f"Logic error: exception escaped from callback: {e}")
+                    self._logger.exception("Logic error: exception escaped from callback: %s", e)

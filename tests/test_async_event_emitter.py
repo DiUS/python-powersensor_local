@@ -68,7 +68,8 @@ async def test_exception_unhandled() -> None:
   emitter = AsyncEventEmitter(logger)
   mock = AsyncMock()
   emitter.subscribe('e', mock)
-  mock.side_effect = KeyError('oops')
+  e = KeyError('oops')
+  mock.side_effect = e
   await emitter.emit('e')
   mock.assert_called_once()
-  logger.exception.assert_called_once_with("Logic error: exception escaped from callback: 'oops'")
+  logger.exception.assert_called_once_with("Logic error: exception escaped from callback: %s", e)

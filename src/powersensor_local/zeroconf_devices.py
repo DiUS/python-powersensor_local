@@ -37,6 +37,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+
+from asyncio import Task
+from logging import Logger
 from typing import Any, Callable, Coroutine
 
 from .devices import _AsyncCallback, _LogLevel, _PowersensorDevicesBase
@@ -92,7 +95,7 @@ try:
                 service_type: str = _SERVICE_TYPE_UDP,
                 debounce_timeout: float = _DEBOUNCE_DEFAULT_S,
                 relay_now_relaying_for: bool = False,
-                logger: 'logging.Logger | None' = None,
+                logger: Logger|None = None,
         ) -> None:
             """Initialise.
 
@@ -118,6 +121,7 @@ try:
             self._zc_owned = zeroconf_instance is None  # True → we close it in stop()
             self._service_type = service_type
             self._debounce_seconds = debounce_timeout
+            self._cb_logger = logger
             self._browser: Any = None
             self._listener: _Listener | None = None
             self._pending_removals: dict[str, asyncio.TimerHandle] = {}
@@ -223,8 +227,15 @@ try:
         def _internal_callback(self, coro: _InternalCallback) -> None:
             """Helper to prevent gc collection of short-lived callback tasks."""
             task = asyncio.create_task(coro)
+
+            def cleanup(task: Task[None]) -> None:
+                self._internal_callbacks.discard(task)
+                e = task.exception()
+                if e is not None and not task.cancelled():
+                    self._maybe_log(_LogLevel.ERROR, 'Exception escaped callback: %s', e)
+
             self._internal_callbacks.add(task)
-            task.add_done_callback(self._internal_callbacks.discard)
+            task.add_done_callback(cleanup)
 
 
     class _Listener(_zc.ServiceListener):

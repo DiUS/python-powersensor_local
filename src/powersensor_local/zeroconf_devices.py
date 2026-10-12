@@ -230,8 +230,12 @@ try:
 
             def cleanup(task: Task[None]) -> None:
                 self._internal_callbacks.discard(task)
+                # Calling exception() raises CancelledError if the task has already been
+                # cancelled.
+                if task.cancelled():
+                    return
                 e = task.exception()
-                if e is not None and not task.cancelled():
+                if e is not None:
                     self._maybe_log(_LogLevel.ERROR, 'Exception escaped callback: %s', e)
 
             self._internal_callbacks.add(task)

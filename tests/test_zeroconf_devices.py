@@ -15,11 +15,16 @@ NAME = f'Powersensor-gateway-aabbccddeeff-civet.{TYPE}'
 
 def fake_service_info(
   cached: bool, answers: bool, id_: bytes = b'aabbccddeeff',
+  gate: asyncio.Event | None = None,
 ) -> type[Any]:
-  """A stand-in for AsyncServiceInfo with a controllable cache and plug response."""
+  """A stand-in for AsyncServiceInfo with a controllable cache and plug response.
+
+  If gate is given, the plug only answers once the gate is set.
+  """
 
   class FakeServiceInfo:
     requested = False
+    requests = 0
 
     def __init__(self, type_: str, name: str) -> None:
       self.port = 49476
@@ -30,6 +35,9 @@ def fake_service_info(
 
     async def async_request(self, zc: Any, timeout: float) -> bool:
       FakeServiceInfo.requested = True
+      FakeServiceInfo.requests += 1
+      if gate is not None:
+        await gate.wait()
       return answers
 
     def parsed_addresses(self) -> list[str]:
@@ -44,7 +52,13 @@ async def settle(devices: PowersensorZeroconfDevices) -> None:
     await asyncio.sleep(0)
     if not devices._internal_callbacks:
       return
-    await asyncio.gather(*list(devices._internal_callbacks))
+    await asyncio.gather(*list(devices._internal_callbacks), return_exceptions=True)
+
+
+async def let_run() -> None:
+  """Let scheduled tasks run up to their next wait, without waiting for them."""
+  for _ in range(5):
+    await asyncio.sleep(0)
 
 
 @pytest.mark.asyncio
@@ -90,6 +104,63 @@ async def test_unanswered_request_is_logged(caplog: pytest.LogCaptureFixture) ->
     await settle(devices)
   on_add.assert_not_awaited()
   assert f'No response from {NAME}' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_removal_before_answer_cancels_lookup(caplog: pytest.LogCaptureFixture) -> None:
+  devices = PowersensorZeroconfDevices(
+    zeroconf_instance=MagicMock(), logger=logging.getLogger('test'),
+  )
+  gate = asyncio.Event()
+  info = fake_service_info(cached=False, answers=True, gate=gate)
+  with caplog.at_level(logging.WARNING), \
+       patch.object(zd, 'AsyncServiceInfo', info), \
+       patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
+       patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
+    listener = zd._Listener(devices)
+    listener.add_service(MagicMock(), TYPE, NAME)
+    await let_run()
+    listener.remove_service(MagicMock(), TYPE, NAME)
+    gate.set()
+    await settle(devices)
+  # The plug was never dispatched, so there is nothing to remove either.
+  on_add.assert_not_awaited()
+  on_remove.assert_not_awaited()
+  assert 'removal ignored' not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_one_lookup_per_plug_at_a_time() -> None:
+  devices = PowersensorZeroconfDevices(zeroconf_instance=MagicMock())
+  gate = asyncio.Event()
+  info = fake_service_info(cached=False, answers=True, gate=gate)
+  with patch.object(zd, 'AsyncServiceInfo', info), \
+       patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
+       patch.object(devices, '_on_zc_update', AsyncMock()) as on_update:
+    listener = zd._Listener(devices)
+    listener.add_service(MagicMock(), TYPE, NAME)
+    await let_run()
+    listener.update_service(MagicMock(), TYPE, NAME)
+    gate.set()
+    await settle(devices)
+  assert info.requests == 1
+  on_add.assert_awaited_once_with('aabbccddeeff', '192.0.2.10', 49476)
+  on_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_removal_after_answer_is_debounced() -> None:
+  devices = PowersensorZeroconfDevices(zeroconf_instance=MagicMock())
+  info = fake_service_info(cached=False, answers=True)
+  with patch.object(zd, 'AsyncServiceInfo', info), \
+       patch.object(devices, '_on_zc_add', AsyncMock()), \
+       patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
+    listener = zd._Listener(devices)
+    listener.add_service(MagicMock(), TYPE, NAME)
+    await settle(devices)
+    listener.remove_service(MagicMock(), TYPE, NAME)
+    await settle(devices)
+  on_remove.assert_awaited_once_with('aabbccddeeff')
 
 
 # Browser callbacks must never raise (see _Listener): zeroconf does not catch

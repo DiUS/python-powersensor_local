@@ -52,10 +52,14 @@ _SERVICE_TYPE_TCP = '_powersensor._tcp.local.'
 
 _DEBOUNCE_DEFAULT_S = 60.0
 
+# How long to wait for a plug to answer when its records are not cached,
+# matching Home Assistant's own zeroconf discovery.
+_REQUEST_TIMEOUT_MS = 10000
+
 
 try:
     import zeroconf as _zc
-    from zeroconf.asyncio import AsyncServiceBrowser
+    from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo
 
     class PowersensorZeroconfDevices(_PowersensorDevicesBase):
         """Discovers and manages Powersensor plugs via continuous mDNS browsing.
@@ -249,36 +253,11 @@ try:
             self._owner = owner
             self._name_to_mac: dict[str, str] = {}
 
-        def _extract(self, zc: Any, type_: str, name: str) -> tuple[str, str, int] | None:
-            """Return (mac, ip, port) from the zeroconf cache, or None.
-
-            Uses ServiceInfo.load_from_cache() rather than
-            Zeroconf.get_service_info() for two reasons:
-
-            1. On zeroconf >= 0.32 (including HA's 0.149.x), ServiceBrowser
-               callbacks run inside the asyncio event loop.  Calling
-               get_service_info() from there blocks waiting for a DNS reply
-               that can never be processed because the event loop is occupied —
-               it deadlocks, times out after 3 s, and silently returns None,
-               causing the device to be dropped.
-
-            2. load_from_cache() is synchronous, non-blocking, and explicitly
-               documented as threadsafe.  The ServiceBrowser guarantees the
-               cache is populated before firing add_service / update_service,
-               so the record is always present when this method is called.
-            """
-            info = _zc.ServiceInfo(type_, name)
-            if not info.load_from_cache(zc):
-                self._owner._maybe_log(
-                    _LogLevel.WARNING,
-                    "No cache entry for %s — device will appear on next mDNS announcement",
-                    name,
-                )
-                return None
-
+        def _parse(self, info: AsyncServiceInfo, name: str) -> tuple[str, str, int] | None:
+            """Return (mac, ip, port) from a resolved service record, or None."""
             addresses = info.parsed_addresses()
             if not addresses:
-                self._owner._maybe_log(_LogLevel.WARNING, "No addresses in zeroconf cache record for %s", name)
+                self._owner._maybe_log(_LogLevel.WARNING, "No addresses in zeroconf record for %s", name)
                 return None
 
             try:
@@ -295,33 +274,52 @@ try:
                 self._owner._maybe_log(_LogLevel.ERROR, "No port in zeroconf record for %s", name)
                 return None
 
-            return raw_id.decode('utf-8'), addresses[0], info.port
+            mac = raw_id.decode('utf-8')
+            self._name_to_mac[name] = mac
+            return mac, addresses[0], info.port
+
+        def _resolve(
+                self,
+                zc: Any,
+                type_: str,
+                name: str,
+                on_resolved: Callable[[str, str, int], _InternalCallback],
+        ) -> None:
+            """Resolve a plug's address and port, then schedule on_resolved.
+
+            The records are usually already in the zeroconf cache.  They are not
+            guaranteed to be, though: a browser started on a shared zeroconf
+            instance (as in Home Assistant when a config entry is reloaded) is
+            seeded from cached PTR records, and the plug's SRV and A records
+            have much shorter lifetimes, so they may have expired.  Waiting for
+            the plug to announce itself again can take a long time, so ask it
+            directly instead, as Home Assistant's own zeroconf discovery does.
+            """
+            info = AsyncServiceInfo(type_, name)
+            if info.load_from_cache(zc):
+                if (result := self._parse(info, name)) is not None:
+                    self._owner._internal_callback(on_resolved(*result))
+                return
+
+            async def request() -> None:
+                if not await info.async_request(zc, _REQUEST_TIMEOUT_MS):
+                    self._owner._maybe_log(
+                        _LogLevel.WARNING,
+                        "No response from %s — device will appear on next mDNS announcement",
+                        name,
+                    )
+                    return
+                if (result := self._parse(info, name)) is not None:
+                    await on_resolved(*result)
+
+            self._owner._maybe_log(_LogLevel.DEBUG, "No cache entry for %s, requesting it", name)
+            self._owner._internal_callback(request())
 
         def add_service(self, zc: Any, type_: str, name: str) -> None:
-            result = self._extract(zc, type_, name)
-            if result is None:
-                self._owner._maybe_log(
-                    _LogLevel.WARNING,
-                    "add_service: no info available for %s — will retry on next announcement",
-                    name,
-                )
-                return
-            mac, ip, port = result
-            self._name_to_mac[name] = mac
-            self._owner._internal_callback(self._owner._on_zc_add(mac, ip, port))
+            self._resolve(zc, type_, name, self._owner._on_zc_add)
 
         def update_service(self, zc: Any, type_: str, name: str) -> None:
-            result = self._extract(zc, type_, name)
-            if result is None:
-                self._owner._maybe_log(
-                    _LogLevel.WARNING,
-                    "update_service: no info available for %s — will retry on next announcement",
-                    name,
-                )
-                return
-            mac, ip, port = result
-            self._name_to_mac[name] = mac
-            self._owner._internal_callback(self._owner._on_zc_update(mac, ip, port))
+            self._resolve(zc, type_, name, self._owner._on_zc_update)
 
         def remove_service(self, zc: Any, type_: str, name: str) -> None:
             mac = self._name_to_mac.pop(name, None)

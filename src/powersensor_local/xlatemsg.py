@@ -1,10 +1,10 @@
 """Common message translation support."""
 
-Message = dict[str, str|int|float|bool]
-Event = Message
-Events = dict[str, Event]
-Selector = tuple[str, str, bool, int] | tuple[str, str, bool]
-Selectors = list[Selector]
+type Message = dict[str, str|int|float|bool]
+type Event = dict[str, str|int|float|bool]
+type Events = dict[str, Event]
+type Selector = tuple[str, str, bool, int] | tuple[str, str, bool]
+type Selectors = list[Selector]
 
 _MAC_TS_ROLE : Selectors = [
   ('mac', 'mac', True),

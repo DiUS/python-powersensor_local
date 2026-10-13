@@ -5,15 +5,5 @@ API Reference
    :members:
    :undoc-members:
    :show-inheritance:
+   :inherited-members:
 
-Submodules
-__________
-
-.. autosummary::
-   :toctree: submodules
-   :recursive:
-
-   devices
-   plug_api
-   virtual_household
-   xlatemsg

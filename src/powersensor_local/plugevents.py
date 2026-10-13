@@ -14,11 +14,11 @@ if PROJECT_ROOT not in sys.path:
 # pylint: disable=C0413
 from powersensor_local.plug_api import PlugApi
 from powersensor_local.abstract_event_handler import AbstractEventHandler
-from powersensor_local.xlatemsg import Message
+from powersensor_local import Event
 
 LOGGER = logging.getLogger(__name__)
 
-async def print_event_and_message(event: str, message: Message) -> None:
+async def print_event_and_message(event: str, message: Event) -> None:
     """Callback for printing event data."""
     print(event, message)
 

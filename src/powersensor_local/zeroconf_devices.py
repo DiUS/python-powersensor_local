@@ -247,7 +247,13 @@ try:
 
 
     class _Listener(_zc.ServiceListener):
-        """Zeroconf ServiceListener that forwards events to PowersensorZeroconfDevices."""
+        """Zeroconf ServiceListener that forwards events to PowersensorZeroconfDevices.
+
+        Its callbacks must never raise as Zeroconf does not catch exceptions from
+        browser callbacks. In Home Assistant, the instance is shared with other
+        integration, so this would disrupt their discovery too. Anything that can
+        fail is therefore either handled here or run in a task.
+        """
 
         def __init__(self, owner: PowersensorZeroconfDevices) -> None:
             self._owner = owner
@@ -274,7 +280,14 @@ try:
                 self._owner._maybe_log(_LogLevel.ERROR, "No port in zeroconf record for %s", name)
                 return None
 
-            mac = raw_id.decode('utf-8')
+            # This runs inside the browser callback, so a bad id from any
+            # device advertising this service type must not raise.
+            try:
+                mac = raw_id.decode('utf-8')
+            except UnicodeDecodeError:
+                self._owner._maybe_log(_LogLevel.ERROR, "'id' property in zeroconf record for %s is not valid UTF-8", name)
+                return None
+
             self._name_to_mac[name] = mac
             return mac, addresses[0], info.port
 
@@ -287,15 +300,23 @@ try:
         ) -> None:
             """Resolve a plug's address and port, then schedule on_resolved.
 
-            The records are usually already in the zeroconf cache.  They are not
-            guaranteed to be, though: a browser started on a shared zeroconf
+            The records are usually already in the zeroconf cache but they are
+            not guaranteed to be. A browser started on a shared zeroconf
             instance (as in Home Assistant when a config entry is reloaded) is
             seeded from cached PTR records, and the plug's SRV and A records
             have much shorter lifetimes, so they may have expired.  Waiting for
             the plug to announce itself again can take a long time, so ask it
             directly instead, as Home Assistant's own zeroconf discovery does.
             """
-            info = AsyncServiceInfo(type_, name)
+            # If a device advertises an invalid DNS name, the constructor will
+            # reject it. This runs inside the browser callback, so ignore
+            # invalid names rather than raise.
+            try:
+                info = AsyncServiceInfo(type_, name)
+            except _zc.BadTypeInNameException:
+                self._owner._maybe_log(_LogLevel.DEBUG, "Ignoring %s: not a valid service name", name)
+                return
+
             if info.load_from_cache(zc):
                 if (result := self._parse(info, name)) is not None:
                     self._owner._internal_callback(on_resolved(*result))

@@ -293,7 +293,7 @@ try:
 
         def _resolve(
                 self,
-                zc: Any,
+                zc: _zc.Zeroconf,
                 type_: str,
                 name: str,
                 on_resolved: Callable[[str, str, int], _InternalCallback],
@@ -336,13 +336,13 @@ try:
             self._owner._maybe_log(_LogLevel.DEBUG, "No cache entry for %s, requesting it", name)
             self._owner._internal_callback(request())
 
-        def add_service(self, zc: Any, type_: str, name: str) -> None:
+        def add_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             self._resolve(zc, type_, name, self._owner._on_zc_add)
 
-        def update_service(self, zc: Any, type_: str, name: str) -> None:
+        def update_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             self._resolve(zc, type_, name, self._owner._on_zc_update)
 
-        def remove_service(self, zc: Any, type_: str, name: str) -> None:
+        def remove_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             mac = self._name_to_mac.pop(name, None)
             if mac is None:
                 self._owner._maybe_log(

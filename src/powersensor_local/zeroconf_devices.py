@@ -77,7 +77,7 @@ try:
         The callback signature is the same as PowersensorLegacyDevices.start():
         ``async def callback(event: dict) -> None``
 
-        Refer to the :class:`CommonEventDocs` for events that may be emitted.
+        Refer to the :class:`CommonEventsDocs` for events that may be emitted.
 
         Note: ``scan_complete`` is NOT emitted — mDNS browsing is continuous and
         has no defined completion point.

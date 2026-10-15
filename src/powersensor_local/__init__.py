@@ -22,7 +22,7 @@ certain situations, as the user is fully in control over when to scan for
 devices. In general it is not recommended for new use.
 
 If wanting individual event streams from each plug, the :class:`PlugApi` class
-is the one to use. Device discovery is left up to the user in this case,
+is the one to use. Device discovery is left up to the user in this case.
 
 The recommended approach is to use mDNS to discover plugs via their service
 "_powersensor._udp.local" (or "_powersensor._tcp.local" for TCP transport), and

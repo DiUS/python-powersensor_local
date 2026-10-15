@@ -42,12 +42,13 @@ Here's a simple example of how to use powersensor_local:
 
    # Main sequence startup
    async def main() -> None:
-       global devs
        # Commence mDNS discovery
        await devs.start(handle_event)
        # Everything happen asynchronously, so wait until time to exit
        while not exiting:
            await asyncio.sleep(0.5)
+       # Be nice and unsubscribe and disconnect on exit
+       await devs.stop()
 
    # Signal handler to flag that it's time to exit
    def flag_exit(signum: int, frame: FrameType) -> None:
@@ -58,12 +59,8 @@ Here's a simple example of how to use powersensor_local:
    if __name__ == "__main__":
        # Register ^C handler for graceful exit
        signal.signal(signal.SIGINT, flag_exit)
-       # Create an event loop
-       loop = asyncio.new_event_loop()
-       # ... and run main in it
+       # Run the main with an event loop
        asyncio.run(main())
-       # Once done, clean up
-       loop.stop()
 
 Further reading
 ---------------

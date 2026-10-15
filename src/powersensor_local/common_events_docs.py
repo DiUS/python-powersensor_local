@@ -40,7 +40,7 @@ class CommonEventsDocs:
         - "starttime_utc": Seconds since the Unix Epoch, in UTC.
         - "duration_s": The number of seconds the reading is calculated over.
         - "watts": The average power, in Watts. May be negative for e.g.
-          solar sensors and house sensors when exporing solar to the grid.
+          solar sensors and house sensors when exporting solar to the grid.
 
     **average_power_components**
         An plug-only event providing additional information on the power
@@ -160,7 +160,7 @@ class CommonEventsDocs:
         - "via": The id of the relaying plug.
         - "starttime_utc": Seconds since the Unix Epoch, in UTC.
         - "duration_s": The number of seconds the reading is calculated over.
-        - "average_rrsi": The average of the RSSI in messages received
+        - "average_rssi": The average of the RSSI in messages received
           during the reporting window. Values below -90 are considered poor
           reception.
         - "last_rssi": The most recent RSSI value.

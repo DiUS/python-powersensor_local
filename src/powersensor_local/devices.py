@@ -11,7 +11,7 @@ from .legacy_discovery import LegacyDiscovery
 from .plug_api import PlugApi
 from .xlatemsg import Event
 
-_AsyncCallback = Callable[[Event], Coroutine[None, None, None]]
+type AsyncEventCallback = Callable[[Event], Coroutine[None, None, None]]
 
 EXPIRY_CHECK_INTERVAL_S = 30
 EXPIRY_TIMEOUT_S = 5 * 60
@@ -43,37 +43,7 @@ class _PowersensorDevicesBase:
     _plug_discovered(mac, ip, port) when a plug appears and
     _plug_lost(mac) when one disappears.
 
-    Known events
-    ------------
-    All subclasses emit the following lifecycle events:
-
-    **device_found**
-        A device has been discovered or re-discovered.
-
-        Note that due to device hardware limitations, role information is NOT
-        reliably available at this time, and therefore not included in this
-        message. There are situations where role information will never become
-        available, and therefore the API can make no promises otherwise. If a
-        user requires role information, they must manage that themselves and
-        also provide a mechanism for handling the situation of a device not
-        being able to provide role information in the first place. If a device
-        does supply a role at any point, it should be considered authoritative
-        and override any user provided value.
-
-        ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
-
-    **device_lost**
-        A device has definitively disappeared (plug) or been inactive long
-        enough to expire (sensor).
-        ``{ event: "device_lost", mac: "..." }``
-
-    Additionally, all events from ``xlatemsg.translate_raw_message`` may be
-    issued for subscribed devices, with the event name inserted into the
-    ``event`` field.  Known measurement events include:
-
-    ``average_flow``, ``average_power``, ``average_power_components``,
-    ``battery_level``, ``now_relaying_for``,
-    ``radio_signal_quality``, ``summation_energy``, ``summation_volume``.
+    The common events described in :class:`CommonEventsDocs` may be issued.
 
     When ``relay_now_relaying_for=True`` the raw ``now_relaying_for`` wire
     message is forwarded to the callback immediately after the synthesised
@@ -107,7 +77,7 @@ class _PowersensorDevicesBase:
             library emits debug/warning/error messages via this logger.  When
             None (default) the library is completely silent.
         """
-        self._event_cb: _AsyncCallback | None = None
+        self._event_cb: AsyncEventCallback | None = None
         self._devices: dict[str, '_PowersensorDevicesBase._Device'] = {}
         self._plug_apis: dict[str, PlugApi] = {}
         self._timer: '_PowersensorDevicesBase._Timer | None' = None
@@ -300,6 +270,13 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
     This is the original PowersensorDevices implementation, renamed to make
     room for PowersensorZeroconfDevices.  The name PowersensorDevices is kept
     as an alias for backwards compatibility.
+
+    See :class:`CommonEventsDocs` for the full list of known events.
+    Additionally emits:
+
+    **scan_complete**
+        Indicates discovery has completed.
+        ``{ event: "scan_complete", gateway_count: N }``
     """
 
     def __init__(
@@ -312,20 +289,8 @@ class PowersensorLegacyDevices(_PowersensorDevicesBase):
         super().__init__(relay_now_relaying_for=relay_now_relaying_for, logger=logger)
         self._discovery = LegacyDiscovery(bcast_addr)
 
-    async def start(self, async_event_cb: _AsyncCallback) -> int:
+    async def start(self, async_event_cb: AsyncEventCallback) -> int:
         """Register the async event callback and scan the local network.
-
-        The callback has the form::
-
-            async def yourcallback(event: dict) -> None
-
-        See _PowersensorDevicesBase for the full list of known events.
-
-        Additionally emits:
-
-        **scan_complete**
-            Indicates discovery has completed.
-            ``{ event: "scan_complete", gateway_count: N }``
 
         Returns the number of gateway plugs found.
         """

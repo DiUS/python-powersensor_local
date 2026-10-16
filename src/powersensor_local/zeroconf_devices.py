@@ -42,9 +42,9 @@ from asyncio import Task
 from logging import Logger
 from typing import Any, Callable, Coroutine
 
-from .devices import _AsyncCallback, _LogLevel, _PowersensorDevicesBase
+from .devices import AsyncEventCallback, _LogLevel, _PowersensorDevicesBase
 
-_InternalCallback = Coroutine[None, None, None]
+type _InternalCallback = Coroutine[None, None, None]
 
 
 _SERVICE_TYPE_UDP = '_powersensor._udp.local.'
@@ -52,9 +52,9 @@ _SERVICE_TYPE_TCP = '_powersensor._tcp.local.'
 
 _DEBOUNCE_DEFAULT_S = 60.0
 
-# How long to wait for a plug to answer when its records are not cached,
-# matching Home Assistant's own zeroconf discovery.
-_REQUEST_TIMEOUT_MS = 10000
+# How long to wait for a plug to answer when its records are not cached.
+# 5 seconds is enough to cover network latency and plug response time.
+_REQUEST_TIMEOUT_MS = 5000
 
 
 try:
@@ -81,13 +81,7 @@ try:
         The callback signature is the same as PowersensorLegacyDevices.start():
         ``async def callback(event: dict) -> None``
 
-        Lifecycle events emitted:
-
-        **device_found**
-            ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
-
-        **device_lost**
-            ``{ event: "device_lost", mac: "..." }``
+        Refer to the :class:`CommonEventsDocs` for events that may be emitted.
 
         Note: ``scan_complete`` is NOT emitted — mDNS browsing is continuous and
         has no defined completion point.
@@ -135,7 +129,7 @@ try:
         # Lifecycle
         # ------------------------------------------------------------------
 
-        async def start(self, async_event_cb: _AsyncCallback) -> None:
+        async def start(self, async_event_cb: AsyncEventCallback) -> None:
             """Register the event callback and start the mDNS service browser.
 
             The browser is event-driven; no polling loop is started here.
@@ -304,7 +298,7 @@ try:
 
         def _resolve(
                 self,
-                zc: Any,
+                zc: _zc.Zeroconf,
                 type_: str,
                 name: str,
                 on_resolved: Callable[[str, str, int], _InternalCallback],
@@ -357,13 +351,13 @@ try:
             self._lookups[name] = lookup
             lookup.add_done_callback(lambda task: self._forget_lookup(name, task))
 
-        def add_service(self, zc: Any, type_: str, name: str) -> None:
+        def add_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             self._resolve(zc, type_, name, self._owner._on_zc_add)
 
-        def update_service(self, zc: Any, type_: str, name: str) -> None:
+        def update_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             self._resolve(zc, type_, name, self._owner._on_zc_update)
 
-        def remove_service(self, zc: Any, type_: str, name: str) -> None:
+        def remove_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             if (lookup := self._lookups.pop(name, None)) is not None:
                 # Removed before it answered, so it was never dispatched.
                 lookup.cancel()

@@ -84,3 +84,6 @@ texinfo_documents = [
         "Miscellaneous",
     ),
 ]
+
+# We don't need module names prefixed everywhere; we're only one module
+add_module_names = False

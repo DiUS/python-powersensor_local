@@ -222,8 +222,11 @@ try:
         # Sync to async bridge for callbacks, per asyncio docs
         # ------------------------------------------------------------------
 
-        def _internal_callback(self, coro: _InternalCallback) -> None:
-            """Helper to prevent gc collection of short-lived callback tasks."""
+        def _internal_callback(self, coro: _InternalCallback) -> Task[None]:
+            """Helper to prevent gc collection of short-lived callback tasks.
+
+            Returns the task, so callers can cancel it early if needed.
+            """
             task = asyncio.create_task(coro)
 
             def cleanup(task: Task[None]) -> None:
@@ -238,6 +241,7 @@ try:
 
             self._internal_callbacks.add(task)
             task.add_done_callback(cleanup)
+            return task
 
 
     class _Listener(_zc.ServiceListener):
@@ -252,6 +256,13 @@ try:
         def __init__(self, owner: PowersensorZeroconfDevices) -> None:
             self._owner = owner
             self._name_to_mac: dict[str, str] = {}
+            # Lookups still waiting for a plug to answer, by service name, so a
+            # removal arriving first can cancel them.
+            self._lookups: dict[str, Task[None]] = {}
+
+        def _forget_lookup(self, name: str, task: Task[Any] | None) -> None:
+            if self._lookups.get(name) is task:
+                del self._lookups[name]
 
         def _parse(self, info: AsyncServiceInfo, name: str) -> tuple[str, str, int] | None:
             """Return (mac, ip, port) from a resolved service record, or None."""
@@ -316,8 +327,16 @@ try:
                     self._owner._internal_callback(on_resolved(*result))
                 return
 
+            if name in self._lookups:
+                # A lookup for this plug is already waiting; it will dispatch.
+                return
+
             async def request() -> None:
-                if not await info.async_request(zc, _REQUEST_TIMEOUT_MS):
+                answered = await info.async_request(zc, _REQUEST_TIMEOUT_MS)
+                # The plug has answered (or not): from here on a removal goes
+                # through the normal debounced path instead of cancelling this.
+                self._forget_lookup(name, asyncio.current_task())
+                if not answered:
                     self._owner._maybe_log(
                         _LogLevel.WARNING,
                         "No response from %s — device will appear on next mDNS announcement",
@@ -328,7 +347,9 @@ try:
                     await on_resolved(*result)
 
             self._owner._maybe_log(_LogLevel.DEBUG, "No cache entry for %s, requesting it", name)
-            self._owner._internal_callback(request())
+            lookup = self._owner._internal_callback(request())
+            self._lookups[name] = lookup
+            lookup.add_done_callback(lambda task: self._forget_lookup(name, task))
 
         def add_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
             self._resolve(zc, type_, name, self._owner._on_zc_add)
@@ -337,8 +358,14 @@ try:
             self._resolve(zc, type_, name, self._owner._on_zc_update)
 
         def remove_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
+            if (lookup := self._lookups.pop(name, None)) is not None:
+                # Removed before it answered, so it was never dispatched.
+                lookup.cancel()
+                self._owner._maybe_log(_LogLevel.DEBUG, "%s removed before it answered; lookup cancelled", name)
             mac = self._name_to_mac.pop(name, None)
             if mac is None:
+                if lookup is not None:
+                    return
                 self._owner._maybe_log(
                     _LogLevel.WARNING,
                     "remove_service for %s: MAC not in cache — removal ignored", name,

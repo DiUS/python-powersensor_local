@@ -52,9 +52,9 @@ _SERVICE_TYPE_TCP = '_powersensor._tcp.local.'
 
 _DEBOUNCE_DEFAULT_S = 60.0
 
-# How long to wait for a plug to answer when its records are not cached,
-# matching Home Assistant's own zeroconf discovery.
-_REQUEST_TIMEOUT_MS = 10000
+# How long to wait for a plug to answer when its records are not cached.
+# 5 seconds is enough to cover network latency and plug response time.
+_REQUEST_TIMEOUT_MS = 5000
 
 
 try:

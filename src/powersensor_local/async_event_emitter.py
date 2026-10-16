@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Awaitable, Callable
 
-_OpenCallback = Callable[..., Awaitable[None]]
+type _OpenCallback = Callable[..., Awaitable[None]]
 
 class AsyncEventEmitter:
     """Small helper class for pub/sub functionality with async handlers.

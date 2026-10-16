@@ -42,9 +42,9 @@ from asyncio import Task
 from logging import Logger
 from typing import Any, Callable, Coroutine
 
-from .devices import _AsyncCallback, _LogLevel, _PowersensorDevicesBase
+from .devices import AsyncEventCallback, _LogLevel, _PowersensorDevicesBase
 
-_InternalCallback = Coroutine[None, None, None]
+type _InternalCallback = Coroutine[None, None, None]
 
 
 _SERVICE_TYPE_UDP = '_powersensor._udp.local.'
@@ -81,13 +81,7 @@ try:
         The callback signature is the same as PowersensorLegacyDevices.start():
         ``async def callback(event: dict) -> None``
 
-        Lifecycle events emitted:
-
-        **device_found**
-            ``{ event: "device_found", device_type: "plug"|"sensor", mac: "..." }``
-
-        **device_lost**
-            ``{ event: "device_lost", mac: "..." }``
+        Refer to the :class:`CommonEventsDocs` for events that may be emitted.
 
         Note: ``scan_complete`` is NOT emitted — mDNS browsing is continuous and
         has no defined completion point.
@@ -135,7 +129,7 @@ try:
         # Lifecycle
         # ------------------------------------------------------------------
 
-        async def start(self, async_event_cb: _AsyncCallback) -> None:
+        async def start(self, async_event_cb: AsyncEventCallback) -> None:
             """Register the event callback and start the mDNS service browser.
 
             The browser is event-driven; no polling loop is started here.

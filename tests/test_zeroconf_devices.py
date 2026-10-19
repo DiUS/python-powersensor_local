@@ -128,7 +128,7 @@ async def test_removal_before_answer_cancels_lookup(caplog: pytest.LogCaptureFix
   )
   gate = asyncio.Event()
   info = FakeServiceInfo(cached=False, answers=True, gate=gate)
-  with caplog.at_level(logging.WARNING), \
+  with caplog.at_level(logging.DEBUG), \
        patch.object(zd, 'AsyncServiceInfo', return_value=info), \
        patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
        patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
@@ -140,6 +140,7 @@ async def test_removal_before_answer_cancels_lookup(caplog: pytest.LogCaptureFix
     gate.set()
     await settle(devices)
   assert lookup.cancelled()
+  assert 'removed before it answered' in caplog.text
   # The plug was never dispatched, so there is nothing to remove either.
   on_add.assert_not_awaited()
   on_remove.assert_not_awaited()

@@ -24,10 +24,14 @@ NAME = f'Powersensor-gateway-aabbccddeeff-civet.{TYPE}'
 class FakeServiceInfo(AsyncServiceInfo):
   """An AsyncServiceInfo with a controllable cache and plug response.
 
-  Keyword arguments override the plug's record, as passed to ServiceInfo.
+  If gate is given, the plug only answers once the gate is set.  Keyword
+  arguments override the plug's record, as passed to ServiceInfo.
   """
 
-  def __init__(self, cached: bool, answers: bool, **record: Any) -> None:
+  def __init__(
+    self, cached: bool, answers: bool, gate: asyncio.Event | None = None,
+    **record: Any,
+  ) -> None:
     super().__init__(TYPE, NAME, **{
       'port': 49476,
       'properties': {b'id': b'aabbccddeeff'},
@@ -36,7 +40,9 @@ class FakeServiceInfo(AsyncServiceInfo):
     })
     self.cached = cached
     self.answers = answers
+    self.gate = gate
     self.requested = False
+    self.requests = 0
 
   def load_from_cache(self, zc: zeroconf.Zeroconf, now: float | None = None) -> bool:
     return self.cached
@@ -45,6 +51,9 @@ class FakeServiceInfo(AsyncServiceInfo):
     self, zc: zeroconf.Zeroconf, timeout: float, *args: Any, **kwargs: Any,
   ) -> bool:
     self.requested = True
+    self.requests += 1
+    if self.gate is not None:
+      await self.gate.wait()
     return self.answers
 
 
@@ -54,7 +63,13 @@ async def settle(devices: PowersensorZeroconfDevices) -> None:
     await asyncio.sleep(0)
     if not devices._internal_callbacks:
       return
-    await asyncio.gather(*list(devices._internal_callbacks))
+    await asyncio.gather(*list(devices._internal_callbacks), return_exceptions=True)
+
+
+async def let_run() -> None:
+  """Let scheduled tasks run up to their next wait, without waiting for them."""
+  for _ in range(5):
+    await asyncio.sleep(0)
 
 
 @pytest.mark.asyncio
@@ -103,6 +118,95 @@ async def test_unanswered_request_is_logged(caplog: pytest.LogCaptureFixture) ->
     await settle(devices)
   on_add.assert_not_awaited()
   assert f'No response from {NAME}' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_removal_before_answer_cancels_lookup(caplog: pytest.LogCaptureFixture) -> None:
+  zc = MagicMock()
+  devices = PowersensorZeroconfDevices(
+    zeroconf_instance=zc, logger=logging.getLogger('test'),
+  )
+  gate = asyncio.Event()
+  info = FakeServiceInfo(cached=False, answers=True, gate=gate)
+  with caplog.at_level(logging.DEBUG), \
+       patch.object(zd, 'AsyncServiceInfo', return_value=info), \
+       patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
+       patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
+    listener = zd._Listener(devices)
+    listener.add_service(zc, TYPE, NAME)
+    await let_run()
+    lookup = listener._lookups[NAME]
+    listener.remove_service(zc, TYPE, NAME)
+    gate.set()
+    await settle(devices)
+  assert lookup.cancelled()
+  assert 'removed before it answered' in caplog.text
+  # The plug was never dispatched, so there is nothing to remove either.
+  on_add.assert_not_awaited()
+  on_remove.assert_not_awaited()
+  assert 'removal ignored' not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_removal_during_update_lookup_removes_known_plug() -> None:
+  zc = MagicMock()
+  devices = PowersensorZeroconfDevices(zeroconf_instance=zc)
+  gate = asyncio.Event()
+  cached = FakeServiceInfo(cached=True, answers=False)
+  uncached = FakeServiceInfo(cached=False, answers=True, gate=gate)
+  with patch.object(zd, 'AsyncServiceInfo', side_effect=[cached, uncached]), \
+       patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
+       patch.object(devices, '_on_zc_update', AsyncMock()) as on_update, \
+       patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
+    listener = zd._Listener(devices)
+    listener.add_service(zc, TYPE, NAME)
+    await settle(devices)
+    listener.update_service(zc, TYPE, NAME)
+    await let_run()
+    listener.remove_service(zc, TYPE, NAME)
+    gate.set()
+    await settle(devices)
+  # The update's lookup is cancelled, but the plug was already dispatched by
+  # the add, so it must still be removed.
+  on_add.assert_awaited_once_with('aabbccddeeff', '192.0.2.10', 49476)
+  on_update.assert_not_awaited()
+  on_remove.assert_awaited_once_with('aabbccddeeff')
+
+
+@pytest.mark.asyncio
+async def test_one_lookup_per_plug_at_a_time() -> None:
+  zc = MagicMock()
+  devices = PowersensorZeroconfDevices(zeroconf_instance=zc)
+  gate = asyncio.Event()
+  info = FakeServiceInfo(cached=False, answers=True, gate=gate)
+  with patch.object(zd, 'AsyncServiceInfo', return_value=info), \
+       patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
+       patch.object(devices, '_on_zc_update', AsyncMock()) as on_update:
+    listener = zd._Listener(devices)
+    listener.add_service(zc, TYPE, NAME)
+    await let_run()
+    listener.update_service(zc, TYPE, NAME)
+    gate.set()
+    await settle(devices)
+  assert info.requests == 1
+  on_add.assert_awaited_once_with('aabbccddeeff', '192.0.2.10', 49476)
+  on_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_removal_after_answer_is_debounced() -> None:
+  zc = MagicMock()
+  devices = PowersensorZeroconfDevices(zeroconf_instance=zc)
+  info = FakeServiceInfo(cached=False, answers=True)
+  with patch.object(zd, 'AsyncServiceInfo', return_value=info), \
+       patch.object(devices, '_on_zc_add', AsyncMock()), \
+       patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
+    listener = zd._Listener(devices)
+    listener.add_service(zc, TYPE, NAME)
+    await settle(devices)
+    listener.remove_service(zc, TYPE, NAME)
+    await settle(devices)
+  on_remove.assert_awaited_once_with('aabbccddeeff')
 
 
 @pytest.mark.asyncio

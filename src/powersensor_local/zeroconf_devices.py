@@ -260,7 +260,7 @@ try:
             # removal arriving first can cancel them.
             self._lookups: dict[str, Task[None]] = {}
 
-        def _forget_lookup(self, name: str, task: Task[Any] | None) -> None:
+        def _forget_lookup(self, name: str, task: Task[None] | None) -> None:
             if self._lookups.get(name) is task:
                 del self._lookups[name]
 
@@ -358,20 +358,21 @@ try:
             self._resolve(zc, type_, name, self._owner._on_zc_update)
 
         def remove_service(self, zc: _zc.Zeroconf, type_: str, name: str) -> None:
-            if (lookup := self._lookups.pop(name, None)) is not None:
-                # Removed before it answered, so it was never dispatched.
+            lookup = self._lookups.pop(name, None)
+            if lookup is not None:
+                # Removed before it answered, so this lookup never dispatched.
+                # An earlier add may have, which the MAC check below handles.
                 lookup.cancel()
                 self._owner._maybe_log(_LogLevel.DEBUG, "%s removed before it answered; lookup cancelled", name)
+
             mac = self._name_to_mac.pop(name, None)
-            if mac is None:
-                if lookup is not None:
-                    return
+            if mac is not None:
+                self._owner._internal_callback(self._owner._on_zc_remove(mac))
+            elif lookup is None:
                 self._owner._maybe_log(
                     _LogLevel.WARNING,
                     "remove_service for %s: MAC not in cache — removal ignored", name,
                 )
-                return
-            self._owner._internal_callback(self._owner._on_zc_remove(mac))
 
 except ImportError as exc:
     _zeroconf_import_error = exc

@@ -145,6 +145,32 @@ async def test_removal_before_answer_cancels_lookup(caplog: pytest.LogCaptureFix
 
 
 @pytest.mark.asyncio
+async def test_removal_during_update_lookup_removes_known_plug() -> None:
+  zc = MagicMock()
+  devices = PowersensorZeroconfDevices(zeroconf_instance=zc)
+  gate = asyncio.Event()
+  cached = FakeServiceInfo(cached=True, answers=False)
+  uncached = FakeServiceInfo(cached=False, answers=True, gate=gate)
+  with patch.object(zd, 'AsyncServiceInfo', side_effect=[cached, uncached]), \
+       patch.object(devices, '_on_zc_add', AsyncMock()) as on_add, \
+       patch.object(devices, '_on_zc_update', AsyncMock()) as on_update, \
+       patch.object(devices, '_on_zc_remove', AsyncMock()) as on_remove:
+    listener = zd._Listener(devices)
+    listener.add_service(zc, TYPE, NAME)
+    await settle(devices)
+    listener.update_service(zc, TYPE, NAME)
+    await let_run()
+    listener.remove_service(zc, TYPE, NAME)
+    gate.set()
+    await settle(devices)
+  # The update's lookup is cancelled, but the plug was already dispatched by
+  # the add, so it must still be removed.
+  on_add.assert_awaited_once_with('aabbccddeeff', '192.0.2.10', 49476)
+  on_update.assert_not_awaited()
+  on_remove.assert_awaited_once_with('aabbccddeeff')
+
+
+@pytest.mark.asyncio
 async def test_one_lookup_per_plug_at_a_time() -> None:
   zc = MagicMock()
   devices = PowersensorZeroconfDevices(zeroconf_instance=zc)

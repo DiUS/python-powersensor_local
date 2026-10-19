@@ -135,9 +135,11 @@ async def test_removal_before_answer_cancels_lookup(caplog: pytest.LogCaptureFix
     listener = zd._Listener(devices)
     listener.add_service(zc, TYPE, NAME)
     await let_run()
+    lookup = listener._lookups[NAME]
     listener.remove_service(zc, TYPE, NAME)
     gate.set()
     await settle(devices)
+  assert lookup.cancelled()
   # The plug was never dispatched, so there is nothing to remove either.
   on_add.assert_not_awaited()
   on_remove.assert_not_awaited()

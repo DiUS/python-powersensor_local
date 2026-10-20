@@ -189,6 +189,13 @@ class _PowersensorDevicesBase:
         device = self._devices.get(mac)
         if device is not None:
             device.mark_active()
+        elif mac in self._plug_apis:
+            # A plug silent for long enough to expire keeps its PlugApi, which
+            # keeps reconnecting, and discovery does not announce it again
+            # while its address is unchanged.  Its data resuming is the only
+            # sign it is back, so announce it again here, as now_relaying_for
+            # does for a sensor.
+            await self._add_device(mac, 'plug')
 
         if ev == 'now_relaying_for':
             await self._add_device(mac, 'sensor')

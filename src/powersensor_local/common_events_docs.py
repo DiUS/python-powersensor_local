@@ -22,8 +22,10 @@ class CommonEventsDocs:
         - "device_type": One of "plug" or "sensor".
 
     **device_lost**
-        A device has definitively disappeared (plug) or been inactive long
-        enough to expire (sensor). The event data comprises:
+        A device has definitively disappeared (plug), or been inactive long
+        enough to expire (plug or sensor). An expired device that becomes
+        active again is announced with a new device_found. The event data
+        comprises:
 
         - "event": "device_lost"
         - "mac": The MAC address of the device.

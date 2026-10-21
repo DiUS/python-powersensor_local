@@ -74,11 +74,10 @@ class CommonEventsDocs:
           depending on whether energy is being imported from or exported
           to the grid.
         - "summation_resettime_utc": A timestamp denoting the last time the
-          summation value (may have) reset. The initial value on a reset is
-          NOT zero. Summation values from before the reset time can not be
-          safely compared or diffed with ones from after the reset time.
-          The format is the same as for "starttime_utc" — seconds since the
-          Unix Epoch, in UTC.
+          summation value reset. Summation values from before the reset time
+          can not be safely compared or diffed with ones from after the reset
+          time. The format is the same as for "starttime_utc" — seconds since
+          the Unix Epoch, in UTC.
 
     **average_flow**
         An event denoting the average flow rate seen over a short duration,
@@ -104,11 +103,10 @@ class CommonEventsDocs:
         - "starttime_utc": Seconds since the Unix Epoch, in UTC.
         - "summation_litres": The summation value, in litres.
         - "summation_resettime_utc": A timestamp denoting the last time the
-          summation value (may have) reset. The initial value on a reset is
-          NOT zero. Summation values from before the reset time can not be
-          safely compared or diffed with ones from after the reset time.
-          The format is the same as for "starttime_utc" — seconds since the
-          Unix Epoch, in UTC.
+          summation value reset. Summation values from before the reset time
+          can not be safely compared or diffed with ones from after the reset
+          time. The format is the same as for "starttime_utc" — seconds since
+          the Unix Epoch, in UTC.
 
     **uncalibrated_average_reading**
         An event denoting an reading with unknown unit, for an average over a

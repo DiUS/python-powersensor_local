@@ -4,11 +4,25 @@ import pytest
 
 from powersensor_local import devices as devices_module
 from powersensor_local.plug_api import PlugApi
-from powersensor_local.xlatemsg import Event
+from powersensor_local.xlatemsg import Event, Message
 from powersensor_local.zeroconf_devices import PowersensorZeroconfDevices
 
 PLUG = 'aabbccddeeff'
 SENSOR = '112233445566'
+
+SENSOR_MESSAGE: Message = {
+  'starttime': 1772164705, 'raw_rssi': -91, 'device': 'sensor', 'rssi': -89.0397534995969,
+  'type': 'instant_power', 'summation_start': 1769972064, 'batteryMicrovolt': 3803104,
+  'mac': SENSOR, 'duration': 30, 'role': 'house-net', 'power': 992, 'unit': 'w',
+  'summation': -281230401,
+}
+# The events a plug relaying SENSOR_MESSAGE emits for it.
+SENSOR_EVENTS = [
+  ('average_power', SENSOR),
+  ('summation_energy', SENSOR),
+  ('battery_level', SENSOR),
+  ('radio_signal_quality', SENSOR),
+]
 
 
 async def with_plug(events: list[Event]) -> PowersensorZeroconfDevices:
@@ -50,6 +64,29 @@ async def test_expired_plug_is_announced_again_when_its_data_resumes() -> None:
     ('device_lost', PLUG),
     ('device_found', PLUG),
     ('average_power', PLUG),
+  ]
+
+
+@pytest.mark.asyncio
+async def test_expired_sensor_is_announced_again_when_its_data_resumes() -> None:
+  events: list[Event] = []
+  with patch.object(PlugApi, 'connect'):
+    devices = await with_plug(events)
+    plug_api = devices._plug_apis[PLUG]
+    await plug_api._on_message('message', SENSOR_MESSAGE)
+    await expire_all(devices)
+    # The sensor's data resumes through the same PlugApi, which synthesized
+    # now_relaying_for for it before it expired and must do so again.
+    await plug_api._on_message('message', SENSOR_MESSAGE)
+    await devices.stop()
+  assert [(e['event'], e['mac']) for e in events] == [
+    ('device_found', PLUG),
+    ('device_found', SENSOR),
+    *SENSOR_EVENTS,
+    ('device_lost', PLUG),
+    ('device_lost', SENSOR),
+    ('device_found', SENSOR),
+    *SENSOR_EVENTS,
   ]
 
 

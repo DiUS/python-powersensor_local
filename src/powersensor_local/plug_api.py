@@ -67,6 +67,14 @@ class PlugApi(AsyncEventEmitter):
         """Disconnects from the plug and stops further connection attempts."""
         await self._listener.disconnect()
 
+    def forget_relayed(self, mac: str) -> None:
+        """Forget having relayed messages for the given device.
+
+        The next message relayed for it synthesizes 'now_relaying_for' again,
+        as if this plug had never relayed for it before.
+        """
+        self._seen.discard(mac)
+
     async def _on_message(self, _: str, message: Message) -> None:
         """Translates the raw message and emits the resulting messages, if any.
 

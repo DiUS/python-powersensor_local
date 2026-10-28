@@ -127,7 +127,7 @@ class _PowersensorDevicesBase:
     async def stop(self) -> None:
         """Stop event streaming and disconnect from all devices.
 
-        To restart, call start() (legacy) or add_plug() (zeroconf) again.
+        To restart, call start() again.
         """
         for plug in list(self._plug_apis.values()):
             await plug.disconnect()
@@ -219,6 +219,21 @@ class _PowersensorDevicesBase:
     async def _remove_device(self, mac: str) -> None:
         if mac in self._devices:
             self._devices.pop(mac)
+            # A sensor is announced only by now_relaying_for, which a PlugApi
+            # synthesizes for just the first message it relays for that sensor,
+            # and remembers having done so for as long as the PlugApi exists.
+            # A sensor that expires while its plug's PlugApi lives on, because
+            # its battery went flat, it was out of range of every plug, or its
+            # plug was off the network without its mDNS record being removed,
+            # would therefore never be announced again.  Its data would resume
+            # through the same plug, but with no now_relaying_for to re-add it,
+            # _emit_if_subscribed would drop every event, and the caller would
+            # never hear from it again until it restarted the library.  So make
+            # every plug forget it: whichever plug next relays for the sensor
+            # synthesizes now_relaying_for again, and it is announced as if
+            # seen for the first time, role included.
+            for api in self._plug_apis.values():
+                api.forget_relayed(mac)
             if self._event_cb is not None:
                 await self._event_cb({
                     'event': 'device_lost',

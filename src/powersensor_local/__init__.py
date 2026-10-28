@@ -69,7 +69,7 @@ __all__ = [
     'Message',
     'CommonEventsDocs',
 ]
-__version__ = "2.4.1rc3"
+__version__ = "2.4.1"
 from .devices import (
     AsyncEventCallback,
     PowersensorDevices,

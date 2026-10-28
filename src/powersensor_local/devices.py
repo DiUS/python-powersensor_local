@@ -127,7 +127,7 @@ class _PowersensorDevicesBase:
     async def stop(self) -> None:
         """Stop event streaming and disconnect from all devices.
 
-        To restart, call start() (legacy) or add_plug() (zeroconf) again.
+        To restart, call start() again.
         """
         for plug in list(self._plug_apis.values()):
             await plug.disconnect()
